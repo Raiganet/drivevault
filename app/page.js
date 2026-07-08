@@ -309,147 +309,169 @@ export default function Home() {
         <div className="p-4 lg:p-8">
           {/* Dashboard */}
           {activeSection === 'dashboard' && (
-            <div className="space-y-6 fade-in">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="card p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center"><i className="fa-solid fa-file text-white text-xl"></i></div>
-                    <span className="text-3xl font-bold">{stats.totalFiles}</span>
-                  </div>
-                  <p className="text-gray-500 text-sm">Total Documents</p>
-                </div>
-                <div className="card p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl gradient-success flex items-center justify-center"><i className="fa-solid fa-database text-white text-xl"></i></div>
-                    <span className="text-3xl font-bold">{stats.totalSizeFormatted}</span>
-                  </div>
-                  <p className="text-gray-500 text-sm">Storage Used</p>
-                </div>
-                <div className="card p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-orange-500 flex items-center justify-center"><i className="fa-solid fa-tags text-white text-xl"></i></div>
-                    <span className="text-3xl font-bold">{Object.keys(stats.categories).length}</span>
-                  </div>
-                  <p className="text-gray-500 text-sm">File Types</p>
-                </div>
-                <div className="card p-6 cursor-pointer hover:shadow-xl transition" onClick={exportData}>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center"><i className="fa-solid fa-download text-white text-xl"></i></div>
-                    <i className="fa-solid fa-arrow-right text-gray-400"></i>
-                  </div>
-                  <p className="text-gray-500 text-sm mb-1">Backup Data</p>
-                  <p className="text-lg font-bold gradient-primary">Download CSV</p>
-                </div>
-              </div>
+  <div className="space-y-6 fade-in">
+    {/* Welcome Banner */}
+    <div className="glass rounded-3xl p-6 lg:p-8 relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-64 h-64 gradient-primary opacity-20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+      <div className="absolute bottom-0 left-0 w-48 h-48 gradient-purple opacity-20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+      <div className="relative z-10">
+        <h2 className="text-2xl lg:text-3xl font-bold mb-2">
+          Welcome back, <span className="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">{currentUser.name}</span>! 👋
+        </h2>
+        <p className="text-gray-500 text-sm lg:text-base">
+          Here's what's happening with your documents today.
+        </p>
+      </div>
+    </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="card p-6">
-                  <h3 className="font-bold text-lg mb-4">Document Statistics</h3>
-                  <DocumentStatsChart categories={stats.categories} isDark={isDark} />
-                </div>
-                <div className="card p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-lg">Recent Documents</h3>
-                    <button onClick={() => setActiveSection('documents')} className="text-blue-600 text-sm hover:underline">View All</button>
-                  </div>
-                  <div className="space-y-3">
-                    {allDocs.slice(0, 5).map(doc => (
-                      <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:shadow-md transition cursor-pointer">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center"><i className="fa-solid fa-file text-white"></i></div>
-                          <div>
-                            <p className="font-medium">{doc.fileName}</p>
-                            <p className="text-xs text-gray-500">{doc.date}</p>
-                          </div>
-                        </div>
-                        <a href={doc.url} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-gray-200 rounded-lg transition">
-                          <i className="fa-solid fa-external-link-alt text-gray-400"></i>
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+    {/* Stats Grid */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Total Documents */}
+      <div className="card p-6 scale-in" style={{ animationDelay: '0.1s' }}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="stat-icon w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center shadow-lg">
+            <i className="fa-solid fa-file-lines text-white text-2xl"></i>
+          </div>
+          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+            <i className="fa-solid fa-arrow-up text-green-500 mr-1"></i>Active
+          </span>
+        </div>
+        <div className="mb-1">
+          <span className="text-4xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+            {stats.totalFiles}
+          </span>
+        </div>
+        <p className="text-gray-500 text-sm font-medium">Total Documents</p>
+      </div>
 
-          {/* Upload */}
-          {activeSection === 'upload' && (
-            <div className="fade-in max-w-3xl mx-auto">
-              <div className="card p-6 lg:p-8">
-                <h2 className="text-2xl font-bold mb-6">Upload Documents</h2>
-                <form onSubmit={handleUpload}>
-                  <input type="file" onChange={handleFileSelect} className="w-full mb-4" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.csv" required />
-                  <select name="category" className="w-full px-4 py-3 rounded-xl border border-gray-300 mb-4" required>
-                    <option value="">Select type...</option>
-                    <option value="PDF">PDF</option>
-                    <option value="JPG">JPG</option>
-                    <option value="PNG">PNG</option>
-                    <option value="DOC">DOC</option>
-                    <option value="XLS">XLS</option>
-                    <option value="CSV">CSV</option>
-                    <option value="Lainnya">Others</option>
-                  </select>
-                  <input type="text" name="customName" placeholder="File Name (optional)" className="w-full px-4 py-3 rounded-xl border border-gray-300 mb-4" />
-                  <textarea name="description" placeholder="Description" rows="3" className="w-full px-4 py-3 rounded-xl border border-gray-300 mb-4"></textarea>
-                  <button type="submit" className="btn-primary w-full py-3 rounded-xl font-semibold text-white">Upload</button>
-                </form>
-              </div>
-            </div>
-          )}
+      {/* Storage Used */}
+      <div className="card p-6 scale-in" style={{ animationDelay: '0.2s' }}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="stat-icon w-14 h-14 rounded-2xl gradient-success flex items-center justify-center shadow-lg">
+            <i className="fa-solid fa-database text-white text-2xl"></i>
+          </div>
+          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+            15 GB Total
+          </span>
+        </div>
+        <div className="mb-1">
+          <span className="text-4xl font-bold bg-gradient-to-r from-green-500 to-emerald-500 bg-clip-text text-transparent">
+            {stats.totalSizeFormatted}
+          </span>
+        </div>
+        <p className="text-gray-500 text-sm font-medium">Storage Used</p>
+        <div className="mt-3 w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div className="storage-bar h-full rounded-full" style={{ width: `${Math.min((stats.totalSize / (15 * 1024 * 1024 * 1024)) * 100, 100)}%` }}></div>
+        </div>
+      </div>
 
-          {/* Documents */}
-          {activeSection === 'documents' && (
-            <div className="fade-in space-y-6">
-              <div className="card p-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search..." className="px-4 py-3 rounded-xl border border-gray-300" />
-                  <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-4 py-3 rounded-xl border border-gray-300">
-                    <option value="">All Types</option>
-                    {Object.keys(stats.categories).map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                  <select value={sortFilter} onChange={(e) => setSortFilter(e.target.value)} className="px-4 py-3 rounded-xl border border-gray-300">
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                    <option value="name_asc">Name A-Z</option>
-                    <option value="name_desc">Name Z-A</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredDocs.map(doc => (
-                  <div key={doc.id} className="card p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
-                          <i className="fa-solid fa-file text-2xl text-gray-500"></i>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold truncate">{doc.fileName}</h3>
-                          <p className="text-sm text-gray-500 line-clamp-2">{doc.description}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
-                      <span><i className="fa-solid fa-tag"></i> {doc.category}</span>
-                      <span><i className="fa-solid fa-database"></i> {doc.sizeFormatted}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <a href={doc.url} target="_blank" rel="noopener noreferrer" className="btn-view flex-1 px-3 py-2 rounded-lg text-sm font-medium text-center">View</a>
-                      <a href={`/api/download?url=${encodeURIComponent(doc.url)}&name=${encodeURIComponent(doc.fileName)}`} target="_blank" className="btn-download flex-1 px-3 py-2 rounded-lg text-sm font-medium text-center">Download</a>
-                      {currentUser.role === 'admin' && (
-                        <button onClick={() => deleteDoc(doc.id, doc.fileName)} className="btn-delete px-3 py-2 rounded-lg">
-                          <i className="fa-solid fa-trash"></i>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+      {/* File Types */}
+      <div className="card p-6 scale-in" style={{ animationDelay: '0.3s' }}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="stat-icon w-14 h-14 rounded-2xl gradient-warning flex items-center justify-center shadow-lg">
+            <i className="fa-solid fa-layer-group text-white text-2xl"></i>
+          </div>
+          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+            Categories
+          </span>
+        </div>
+        <div className="mb-1">
+          <span className="text-4xl font-bold bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">
+            {Object.keys(stats.categories).length}
+          </span>
+        </div>
+        <p className="text-gray-500 text-sm font-medium">File Types</p>
+        <div className="mt-3 flex gap-1 flex-wrap">
+          {Object.keys(stats.categories).slice(0, 4).map((cat, i) => (
+            <span key={cat} className="text-xs px-2 py-1 rounded-md bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 font-medium">
+              {cat}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Backup Data */}
+      <div className="card p-6 cursor-pointer scale-in group" style={{ animationDelay: '0.4s' }} onClick={exportData}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="stat-icon w-14 h-14 rounded-2xl gradient-purple flex items-center justify-center shadow-lg group-hover:rotate-12 transition-transform">
+            <i className="fa-solid fa-cloud-arrow-down text-white text-2xl"></i>
+          </div>
+          <i className="fa-solid fa-arrow-right text-gray-400 group-hover:translate-x-1 transition-transform"></i>
+        </div>
+        <div className="mb-1">
+          <span className="text-lg font-bold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
+            Download CSV
+          </span>
+        </div>
+        <p className="text-gray-500 text-sm font-medium">Backup Data</p>
+        <p className="text-xs text-gray-400 mt-2">Click to export all data</p>
+      </div>
+    </div>
+
+    {/* Charts & Recent Docs */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Chart */}
+      <div className="card p-6 scale-in" style={{ animationDelay: '0.5s' }}>
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <i className="fa-solid fa-chart-pie text-purple-500"></i>
+              Document Statistics
+            </h3>
+            <p className="text-xs text-gray-500 mt-1">Distribution by file type</p>
+          </div>
+          <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+            <i className="fa-solid fa-clock mr-1"></i>Live
+          </div>
+        </div>
+        <DocumentStatsChart categories={stats.categories} isDark={isDark} />
+      </div>
+
+      {/* Recent Documents */}
+      <div className="card p-6 scale-in" style={{ animationDelay: '0.6s' }}>
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <i className="fa-solid fa-clock-rotate-left text-blue-500"></i>
+              Recent Documents
+            </h3>
+            <p className="text-xs text-gray-500 mt-1">Latest uploads</p>
+          </div>
+          <button onClick={() => setActiveSection('documents')} className="text-sm text-blue-500 hover:text-purple-500 font-medium transition-colors">
+            View All <i className="fa-solid fa-arrow-right ml-1"></i>
+          </button>
+        </div>
+        <div className="space-y-3">
+          {allDocs.length === 0 ? (
+            <div className="text-center py-8">
+              <i className="fa-solid fa-folder-open text-5xl text-gray-300 mb-3"></i>
+              <p className="text-gray-500 text-sm">No documents yet</p>
             </div>
+          ) : (
+            allDocs.slice(0, 5).map((doc, i) => (
+              <div key={doc.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer group" style={{ animationDelay: `${0.7 + i * 0.1}s` }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                    <i className="fa-solid fa-file text-white"></i>
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm truncate max-w-[200px]">{doc.fileName}</p>
+                    <p className="text-xs text-gray-500">
+                      <i className="fa-regular fa-clock mr-1"></i>{doc.date}
+                    </p>
+                  </div>
+                </div>
+                <a href={doc.url} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg hover:bg-blue-100 transition-colors">
+                  <i className="fa-solid fa-external-link-alt text-gray-400 group-hover:text-blue-500"></i>
+                </a>
+              </div>
+            ))
           )}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
           {/* Activity */}
           {activeSection === 'activity' && (
