@@ -28,13 +28,13 @@ export async function GET() {
 
     const data = rows.slice(1); // Skip header
     const categories = {};
-    let totalSize = 0;
+    let totalSizeFromSheet = 0;
 
     const documents = data.map(row => {
       const category = row[2] || 'Lainnya';
       const size = parseInt(row[6]) || 0;
       categories[category] = (categories[category] || 0) + 1;
-      totalSize += size;
+      totalSizeFromSheet += size;
 
       // Format date
       let formattedDate = 'Unknown';
@@ -65,23 +65,29 @@ export async function GET() {
       };
     }).reverse();
 
-    // Get folder size
-    console.log('Getting folder size...');
+    // Get folder size from Drive
+    console.log('Getting folder size from Drive...');
     let folderSize = 0;
     try {
       const folderRes = await drive.files.list({
         q: `'${process.env.DRIVE_FOLDER_ID}' in parents and trashed=false`,
-        fields: 'files(size)',
+        fields: 'files(size, name)',
         pageSize: 1000,
       });
       
-      folderSize = folderRes.data.files.reduce((acc, file) => {
-        return acc + (parseInt(file.size) || 0);
-      }, 0);
+      if (folderRes.data.files) {
+        folderSize = folderRes.data.files.reduce((acc, file) => {
+          const size = parseInt(file.size) || 0;
+          console.log(`File: ${file.name}, Size: ${size}`);
+          return acc + size;
+        }, 0);
+      }
       
-      console.log('Folder size:', formatBytes(folderSize));
+      console.log('Total folder size:', folderSize, formatBytes(folderSize));
     } catch (error) {
       console.error('Error getting folder size:', error.message);
+      // Fallback: gunakan total dari sheet
+      folderSize = totalSizeFromSheet;
     }
 
     const result = {
@@ -96,6 +102,7 @@ export async function GET() {
     };
 
     console.log('✅ Documents fetched successfully:', documents.length, 'files');
+    console.log('📊 Stats:', result.stats);
     return NextResponse.json(result);
 
   } catch (error) {

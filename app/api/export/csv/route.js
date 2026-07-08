@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { sheets } from '@/lib/google';
+import { getSheets } from '@/lib/google';
 
 export async function GET() {
   try {
+    const sheets = await getSheets();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SHEET_ID,
       range: `${process.env.SHEET_NAME}!A:G`,
@@ -22,6 +23,7 @@ export async function GET() {
       }
     });
   } catch (error) {
+    console.error('CSV export error:', error);
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }

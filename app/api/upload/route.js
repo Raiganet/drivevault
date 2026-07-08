@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { drive, sheets } from '@/lib/google';
+import { getDrive, getSheets } from '@/lib/google';
 import { cookies } from 'next/headers';
 
 export async function POST(req) {
@@ -18,6 +18,10 @@ export async function POST(req) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     
+    const drive = await getDrive();
+    const sheets = await getSheets();
+
+    // Upload to Drive
     const driveRes = await drive.files.create({
       requestBody: {
         name: customName,
@@ -50,6 +54,7 @@ export async function POST(req) {
 
     return NextResponse.json({ success: true, message: 'Dokumen berhasil disimpan!' });
   } catch (error) {
+    console.error('Upload error:', error);
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
