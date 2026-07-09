@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 
 const USERS = {
-  admin: { password: 'admin123', role: 'admin', name: 'Administrator' },
+  admin: { password: 'Haidar141019', role: 'admin', name: 'Diky Hermansyah' },
   guest: { password: 'guest123', role: 'guest', name: 'Guest User' }
 };
 

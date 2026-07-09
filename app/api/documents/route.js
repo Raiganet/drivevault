@@ -3,13 +3,13 @@ import { getDrive, getSheets, formatBytes } from '@/lib/google';
 
 export async function GET() {
   try {
-    console.log('📊 Fetching documents...');
+    console.log('📄 Fetching documents...');
     
     const sheets = await getSheets();
     const drive = await getDrive();
 
     // Get data from Sheets
-    console.log('Reading from sheet:', process.env.SHEET_ID, process.env.SHEET_NAME);
+    console.log('📊 Reading from sheet:', process.env.SHEET_ID, process.env.SHEET_NAME);
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SHEET_ID,
       range: `${process.env.SHEET_NAME}!A:G`,
@@ -66,7 +66,7 @@ export async function GET() {
     }).reverse();
 
     // Get folder size from Drive
-    console.log('Getting folder size from Drive...');
+    console.log('📁 Getting folder size from Drive...');
     let folderSize = 0;
     try {
       const folderRes = await drive.files.list({
@@ -78,15 +78,13 @@ export async function GET() {
       if (folderRes.data.files) {
         folderSize = folderRes.data.files.reduce((acc, file) => {
           const size = parseInt(file.size) || 0;
-          console.log(`File: ${file.name}, Size: ${size}`);
           return acc + size;
         }, 0);
       }
       
-      console.log('Total folder size:', folderSize, formatBytes(folderSize));
+      console.log('✅ Total folder size from Drive:', folderSize, formatBytes(folderSize));
     } catch (error) {
-      console.error('Error getting folder size:', error.message);
-      // Fallback: gunakan total dari sheet
+      console.error('⚠️ Error getting folder size from Drive (using sheet fallback):', error.message);
       folderSize = totalSizeFromSheet;
     }
 

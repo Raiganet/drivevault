@@ -1,80 +1,54 @@
 'use client';
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import DocumentStatsChart from './components/DocumentStatsChart';
+import { useEffect, useState, useCallback } from 'react';
+import { useTheme } from '@/hooks/useTheme';
+import { useDocuments } from '@/hooks/useDocuments';
+import { useResponsive } from '@/hooks/useResponsive';
+import { showToast, confirmDialog } from '@/utils/helpers';
+import { STORAGE_LIMIT } from '@/utils/constants';
+
+import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
+import Dashboard from '@/components/Dashboard';
+import Upload from '@/components/Upload';
+import Documents from '@/components/Documents';
+import Activity from '@/components/Activity';
+import { DashboardSkeleton } from '@/components/LoadingSkeleton';
+import Settings from '@/components/Settings';
 
 export default function Home() {
-  // State management
-  const [isMounted, setIsMounted] = useState(false);
+  // Hooks
+  const { isDark, isMounted, toggleTheme } = useTheme();
+  const { isMobile, isTablet } = useResponsive();
+  const {
+    allDocs,
+    filteredDocs,
+    stats,
+    isLoading,
+    searchTerm,
+    setSearchTerm,
+    categoryFilter,
+    setCategoryFilter,
+    sortFilter,
+    setSortFilter,
+    viewMode,
+    setViewMode,
+    loadDocuments,
+    deleteDoc,
+    bulkDelete,
+    exportData,
+    handleDownload,
+  } = useDocuments();
+
+  // Local State
   const [currentUser, setCurrentUser] = useState(null);
-  const [allDocs, setAllDocs] = useState([]);
-  const [selectedDocs, setSelectedDocs] = useState(new Set());
   const [activityLog, setActivityLog] = useState([]);
-  const [stats, setStats] = useState({ totalFiles: 0, totalSize: 0, totalSizeFormatted: '0 MB', categories: {} });
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDark, setIsDark] = useState(false);
   const [activeSection, setActiveSection] = useState('dashboard');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [sortFilter, setSortFilter] = useState('newest');
-  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [selectedDocs, setSelectedDocs] = useState(new Set());
 
-  // Filtered and sorted documents
-  const filteredDocs = useMemo(() => {
-    let result = [...allDocs];
-
-    if (searchTerm) {
-      result = result.filter(doc => 
-        doc.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (doc.description && doc.description.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-    }
-
-    if (categoryFilter) {
-      result = result.filter(doc => doc.category === categoryFilter);
-    }
-
-    result.sort((a, b) => {
-      switch (sortFilter) {
-        case 'newest': return new Date(b.date) - new Date(a.date);
-        case 'oldest': return new Date(a.date) - new Date(b.date);
-        case 'name_asc': return a.fileName.localeCompare(b.fileName);
-        case 'name_desc': return b.fileName.localeCompare(a.fileName);
-        default: return 0;
-      }
-    });
-
-    return result;
-  }, [allDocs, searchTerm, categoryFilter, sortFilter]);
-
-  // Load documents from API
-  const loadDocuments = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/documents');
-      const data = await res.json();
-      
-      if (data.success) {
-        setAllDocs(data.data || []);
-        setStats(data.stats || { totalFiles: 0, totalSize: 0, totalSizeFormatted: '0 MB', categories: {} });
-      } else {
-        showToast('Failed to load documents', 'error');
-      }
-    } catch (error) {
-      showToast('Error: ' + error.message, 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // Initial load
+  // Initial Load
   useEffect(() => {
-    setIsMounted(true);
-    
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    setIsDark(savedTheme === 'dark');
-    document.body.classList.remove('light', 'dark');
-    document.body.classList.add(savedTheme);
-
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
       try {
@@ -83,40 +57,17 @@ export default function Home() {
         localStorage.removeItem('currentUser');
       }
     }
+  }, []);
 
-    loadDocuments();
-  }, [loadDocuments]);
-
-  // Helper functions
-  function showToast(msg, type = 'info') {
-    const t = document.createElement('div');
-    const colors = { success: 'bg-green-500', error: 'bg-red-500', warning: 'bg-orange-500', info: 'bg-blue-500' };
-    const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
-    t.className = `fixed bottom-24 right-6 px-6 py-3 rounded-xl shadow-2xl z-50 fade-in text-white ${colors[type]}`;
-    t.innerHTML = `<i class="fa-solid ${icons[type]} mr-2"></i>${msg}`;
-    document.getElementById('toastContainer')?.appendChild(t);
-    setTimeout(() => t.remove(), 3000);
-  }
-
-  function addActivity(action, description, type = 'info') {
+  // Helper Functions
+  const addActivity = useCallback((action, description, type = 'info') => {
     setActivityLog(prev => {
       const entry = { action, description, type, timestamp: new Date().toISOString() };
-      const newLog = [entry, ...prev];
-      return newLog.slice(0, 50);
+      return [entry, ...prev].slice(0, 50);
     });
-  }
+  }, []);
 
-  function toggleTheme() {
-    setIsDark(prev => {
-      const newTheme = !prev;
-      document.body.classList.remove('light', 'dark');
-      document.body.add(newTheme ? 'dark' : 'light');
-      localStorage.setItem('theme', newTheme ? 'dark' : 'light');
-      return newTheme;
-    });
-  }
-
-  function handleLogin(e) {
+  const handleLogin = (e) => {
     e.preventDefault();
     const username = e.target.username.value;
     const password = e.target.password.value;
@@ -134,393 +85,241 @@ export default function Home() {
         showToast(`Welcome back, ${data.name}!`, 'success');
         addActivity('Login', `User ${data.name} logged in`, 'success');
       } else {
-        showToast(data.message, 'error');
+        showToast(data.message || 'Login failed', 'error');
       }
     })
-    .catch(err => showToast('Network error', 'error'));
-  }
+    .catch(err => showToast('Network error: ' + err.message, 'error'));
+  };
 
-  function logout() {
-    setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    showToast('Logged out successfully', 'info');
-  }
+  const handleLogout = () => {
+    confirmDialog('Are you sure you want to logout?', () => {
+      setCurrentUser(null);
+      localStorage.removeItem('currentUser');
+      showToast('Logged out successfully', 'info');
+    });
+  };
 
-  function handleFileSelect(e) {
-    const files = Array.from(e.target.files);
-    if (files.some(f => f.size > 10 * 1024 * 1024)) {
-      showToast('Maximum file size is 10MB!', 'error');
-      e.target.value = '';
-      setSelectedFiles([]);
-      return;
-    }
-    setSelectedFiles(files);
-  }
+  const handleViewDoc = (doc) => {
+    window.open(doc.url, '_blank', 'noopener,noreferrer');
+    addActivity('View', `Viewed: ${doc.fileName}`, 'info');
+  };
 
-  function handleUpload(e) {
-    e.preventDefault();
-    if (selectedFiles.length === 0) {
-      showToast('Please select files!', 'error');
-      return;
-    }
+  const handleDeleteDoc = (doc) => {
+    deleteDoc(doc.id, doc.fileName);
+    addActivity('Delete', `Deleted: ${doc.fileName}`, 'warning');
+  };
 
-    const formData = new FormData();
-    formData.append('file', selectedFiles[0]);
-    formData.append('category', e.target.category.value);
-    formData.append('description', e.target.description.value);
-    formData.append('customName', e.target.customName.value || selectedFiles[0].name);
+  const handleBulkDelete = (ids) => {
+    bulkDelete(ids);
+    addActivity('Bulk Delete', `Deleted ${ids.length} document(s)`, 'warning');
+  };
 
-    fetch('/api/upload', {
-      method: 'POST',
-      body: formData
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        showToast('File uploaded successfully!', 'success');
-        addActivity('Upload', `Uploaded: ${selectedFiles[0].name}`, 'success');
-        setSelectedFiles([]);
-        e.target.reset();
-        loadDocuments();
-        setActiveSection('documents');
-      } else {
-        showToast(data.message, 'error');
-      }
-    })
-    .catch(err => showToast('Upload error', 'error'));
-  }
-
-  function deleteDoc(id, name) {
-    if (!confirm(`Delete "${name}"?`)) return;
-
-    fetch('/api/documents', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: [id] })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        showToast(data.message, 'success');
-        addActivity('Delete', `Deleted: ${name}`, 'warning');
-        loadDocuments();
-      } else {
-        showToast(data.message, 'error');
-      }
-    })
-    .catch(err => showToast('Delete error', 'error'));
-  }
-
-  function exportData() {
-    window.open('/api/export/csv', '_blank');
+  const handleExportData = () => {
+    exportData();
     addActivity('Export', 'Downloaded CSV backup', 'success');
-    showToast('CSV downloaded!', 'success');
-  }
+  };
 
-  // Loading state
+  const handleUploadSuccess = () => {
+    addActivity('Upload', 'Uploaded new document(s)', 'success');
+  };
+
+  // Loading State
   if (!isMounted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <i className="fa-solid fa-circle-notch fa-spin text-4xl text-blue-500 mb-4"></i>
-          <p className="text-gray-600">Loading SecureVault Pro...</p>
+      <div className="min-h-screen flex items-center justify-center gradient-primary">
+        <div className="text-center text-white">
+          <i className="fa-solid fa-circle-notch fa-spin text-6xl mb-4"></i>
+          <p className="text-xl font-medium">Loading DriveVault Pro...</p>
         </div>
       </div>
     );
   }
 
-  // Login page
+  // Login Page
   if (!currentUser) {
     return (
       <div className="fade-in min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
         <div className="absolute inset-0 gradient-primary opacity-10"></div>
-        <div className="card p-8 max-w-md w-full relative z-10">
+        <div className="absolute top-20 left-20 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }}></div>
+        
+        <div className="card-elevated p-8 max-w-md w-full relative z-10 animate-scale-in">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">SecureVault Pro</h1>
-            <p className="text-gray-500">Enterprise Document Management</p>
+            <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center shadow-2xl rounded-2xl overflow-hidden gradient-primary p-1">
+              <div className="w-full h-full bg-white rounded-xl flex items-center justify-center">
+                <img src="/logo.png" alt="DriveVault Logo" className="w-16 h-16 object-contain" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold mb-2 text-gradient">
+              DriveVault Pro
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400">Enterprise Document Management</p>
           </div>
+          
           <form onSubmit={handleLogin} className="space-y-4">
-            <input type="text" name="username" placeholder="Username" className="w-full px-4 py-3 rounded-xl border border-gray-300" required />
-            <input type="password" name="password" placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-gray-300" required />
-            <button type="submit" className="btn-primary w-full py-3 rounded-xl font-semibold text-white">Sign In</button>
+            <div>
+              <label className="block text-sm font-medium mb-2">Username</label>
+              <div className="relative">
+                <i className="fa-solid fa-user absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input 
+                  type="text" 
+                  name="username"
+                  className="input pl-12"
+                  placeholder="admin or guest" 
+                  required 
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Password</label>
+              <div className="relative">
+                <i className="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input 
+                  type="password" 
+                  name="password"
+                  className="input pl-12"
+                  placeholder="••••••••" 
+                  required 
+                />
+              </div>
+            </div>
+            
+            <button 
+              type="submit" 
+              className="btn-primary w-full py-3"
+            >
+              <i className="fa-solid fa-right-to-bracket"></i>
+              Sign In
+            </button>
           </form>
-          <div className="mt-6 p-4 bg-blue-50 rounded-xl">
-            <p className="text-xs text-blue-800 font-semibold">💡 Login: guest / guest123</p>
-          </div>
         </div>
       </div>
     );
   }
 
-  // Main app
+  // Main App
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-gray-50 dark:bg-slate-950 transition-colors">
       {/* Sidebar */}
-      <aside className="sidebar-desktop-only fixed left-0 top-0 h-full w-72 glass z-50 overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="font-bold text-xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">SecureVault</h2>
-          <p className="text-xs text-gray-500">Developed by @Raiganet</p>
-        </div>
-        <nav className="p-4 space-y-2">
-          {['dashboard', 'upload', 'documents', 'activity', 'settings'].map(section => (
-            <button
-              key={section}
-              onClick={() => setActiveSection(section)}
-              className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 text-left ${activeSection === section ? 'active' : ''}`}
-            >
-              <i className={`fa-solid ${section === 'dashboard' ? 'fa-chart-pie' : section === 'upload' ? 'fa-cloud-arrow-up' : section === 'documents' ? 'fa-folder-open' : section === 'activity' ? 'fa-clock-rotate-left' : 'fa-gear'} w-5`}></i>
-              <span className="capitalize">{section}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
-          <div className="flex items-center gap-3 px-4 py-3 mb-2">
-            <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center">
-              <i className="fa-solid fa-user text-white"></i>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium truncate">{currentUser.name}</p>
-              <p className="text-xs text-gray-500">{currentUser.role.toUpperCase()}</p>
-            </div>
-          </div>
-          <button onClick={logout} className="w-full px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition flex items-center justify-center gap-2">
-            <i className="fa-solid fa-right-from-bracket"></i><span>Logout</span>
-          </button>
-        </div>
-      </aside>
+      <Sidebar
+        activeSection={activeSection}
+        setActiveSection={setActiveSection}
+        currentUser={currentUser}
+        stats={stats}
+        onLogout={handleLogout}
+        isMobile={isMobile}
+        isMobileMenuOpen={isMobileMenuOpen}
+        setIsMobileMenuOpen={setIsMobileMenuOpen}
+        isCollapsed={isSidebarCollapsed}
+        setIsCollapsed={setIsSidebarCollapsed}
+      />
 
       {/* Main Content */}
-      <main className="main-content lg:ml-72 min-h-screen">
-        <header className="glass sticky top-0 z-30 px-4 lg:px-8 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold capitalize">{activeSection}</h1>
-            <p className="text-sm text-gray-500">{new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-gray-100 transition">
-              <i className={`fa-solid ${isDark ? 'fa-sun' : 'fa-moon'} text-xl`}></i>
-            </button>
-            <button onClick={() => setActiveSection('upload')} className="btn-primary px-4 lg:px-6 py-2.5 rounded-xl font-medium text-white flex items-center gap-2">
-              <i className="fa-solid fa-plus"></i><span className="hidden sm:inline">New Upload</span>
-            </button>
-          </div>
-        </header>
+      <main className="flex-1 flex flex-col min-h-screen lg:min-h-0 overflow-hidden">
+        {/* Header */}
+        <Header
+          activeSection={activeSection}
+          onNavigate={setActiveSection}
+          onThemeToggle={toggleTheme}
+          isDark={isDark}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          searchQuery={searchTerm}
+          setSearchQuery={setSearchTerm}
+          onUploadClick={() => setActiveSection('upload')}
+        />
 
-        <div className="p-4 lg:p-8">
-          {/* Dashboard */}
-          {activeSection === 'dashboard' && (
-  <div className="space-y-6 fade-in">
-    {/* Welcome Banner */}
-    <div className="glass rounded-3xl p-6 lg:p-8 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-64 h-64 gradient-primary opacity-20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-      <div className="absolute bottom-0 left-0 w-48 h-48 gradient-purple opacity-20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
-      <div className="relative z-10">
-        <h2 className="text-2xl lg:text-3xl font-bold mb-2">
-          Welcome back, <span className="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">{currentUser.name}</span>! 👋
-        </h2>
-        <p className="text-gray-500 text-sm lg:text-base">
-          Here's what's happening with your documents today.
-        </p>
-      </div>
-    </div>
-
-    {/* Stats Grid */}
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {/* Total Documents */}
-      <div className="card p-6 scale-in" style={{ animationDelay: '0.1s' }}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="stat-icon w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center shadow-lg">
-            <i className="fa-solid fa-file-lines text-white text-2xl"></i>
-          </div>
-          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            <i className="fa-solid fa-arrow-up text-green-500 mr-1"></i>Active
-          </span>
-        </div>
-        <div className="mb-1">
-          <span className="text-4xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-            {stats.totalFiles}
-          </span>
-        </div>
-        <p className="text-gray-500 text-sm font-medium">Total Documents</p>
-      </div>
-
-      {/* Storage Used */}
-      <div className="card p-6 scale-in" style={{ animationDelay: '0.2s' }}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="stat-icon w-14 h-14 rounded-2xl gradient-success flex items-center justify-center shadow-lg">
-            <i className="fa-solid fa-database text-white text-2xl"></i>
-          </div>
-          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            15 GB Total
-          </span>
-        </div>
-        <div className="mb-1">
-          <span className="text-4xl font-bold bg-gradient-to-r from-green-500 to-emerald-500 bg-clip-text text-transparent">
-            {stats.totalSizeFormatted}
-          </span>
-        </div>
-        <p className="text-gray-500 text-sm font-medium">Storage Used</p>
-        <div className="mt-3 w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div className="storage-bar h-full rounded-full" style={{ width: `${Math.min((stats.totalSize / (15 * 1024 * 1024 * 1024)) * 100, 100)}%` }}></div>
-        </div>
-      </div>
-
-      {/* File Types */}
-      <div className="card p-6 scale-in" style={{ animationDelay: '0.3s' }}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="stat-icon w-14 h-14 rounded-2xl gradient-warning flex items-center justify-center shadow-lg">
-            <i className="fa-solid fa-layer-group text-white text-2xl"></i>
-          </div>
-          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            Categories
-          </span>
-        </div>
-        <div className="mb-1">
-          <span className="text-4xl font-bold bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">
-            {Object.keys(stats.categories).length}
-          </span>
-        </div>
-        <p className="text-gray-500 text-sm font-medium">File Types</p>
-        <div className="mt-3 flex gap-1 flex-wrap">
-          {Object.keys(stats.categories).slice(0, 4).map((cat, i) => (
-            <span key={cat} className="text-xs px-2 py-1 rounded-md bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 font-medium">
-              {cat}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* Backup Data */}
-      <div className="card p-6 cursor-pointer scale-in group" style={{ animationDelay: '0.4s' }} onClick={exportData}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="stat-icon w-14 h-14 rounded-2xl gradient-purple flex items-center justify-center shadow-lg group-hover:rotate-12 transition-transform">
-            <i className="fa-solid fa-cloud-arrow-down text-white text-2xl"></i>
-          </div>
-          <i className="fa-solid fa-arrow-right text-gray-400 group-hover:translate-x-1 transition-transform"></i>
-        </div>
-        <div className="mb-1">
-          <span className="text-lg font-bold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
-            Download CSV
-          </span>
-        </div>
-        <p className="text-gray-500 text-sm font-medium">Backup Data</p>
-        <p className="text-xs text-gray-400 mt-2">Click to export all data</p>
-      </div>
-    </div>
-
-    {/* Charts & Recent Docs */}
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Chart */}
-      <div className="card p-6 scale-in" style={{ animationDelay: '0.5s' }}>
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h3 className="font-bold text-lg flex items-center gap-2">
-              <i className="fa-solid fa-chart-pie text-purple-500"></i>
-              Document Statistics
-            </h3>
-            <p className="text-xs text-gray-500 mt-1">Distribution by file type</p>
-          </div>
-          <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            <i className="fa-solid fa-clock mr-1"></i>Live
-          </div>
-        </div>
-        <DocumentStatsChart categories={stats.categories} isDark={isDark} />
-      </div>
-
-      {/* Recent Documents */}
-      <div className="card p-6 scale-in" style={{ animationDelay: '0.6s' }}>
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h3 className="font-bold text-lg flex items-center gap-2">
-              <i className="fa-solid fa-clock-rotate-left text-blue-500"></i>
-              Recent Documents
-            </h3>
-            <p className="text-xs text-gray-500 mt-1">Latest uploads</p>
-          </div>
-          <button onClick={() => setActiveSection('documents')} className="text-sm text-blue-500 hover:text-purple-500 font-medium transition-colors">
-            View All <i className="fa-solid fa-arrow-right ml-1"></i>
-          </button>
-        </div>
-        <div className="space-y-3">
-          {allDocs.length === 0 ? (
-            <div className="text-center py-8">
-              <i className="fa-solid fa-folder-open text-5xl text-gray-300 mb-3"></i>
-              <p className="text-gray-500 text-sm">No documents yet</p>
-            </div>
+        {/* Page Content */}
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8 pb-24 lg:pb-8">
+          {isLoading && activeSection === 'dashboard' ? (
+            <DashboardSkeleton />
           ) : (
-            allDocs.slice(0, 5).map((doc, i) => (
-              <div key={doc.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer group" style={{ animationDelay: `${0.7 + i * 0.1}s` }}>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
-                    <i className="fa-solid fa-file text-white"></i>
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm truncate max-w-[200px]">{doc.fileName}</p>
-                    <p className="text-xs text-gray-500">
-                      <i className="fa-regular fa-clock mr-1"></i>{doc.date}
-                    </p>
-                  </div>
-                </div>
-                <a href={doc.url} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg hover:bg-blue-100 transition-colors">
-                  <i className="fa-solid fa-external-link-alt text-gray-400 group-hover:text-blue-500"></i>
-                </a>
-              </div>
-            ))
+            <>
+              {activeSection === 'dashboard' && (
+                <Dashboard
+                  currentUser={currentUser}
+                  stats={stats}
+                  allDocs={allDocs}
+                  onNavigate={setActiveSection}
+                  onViewDoc={handleViewDoc}
+                  onDownloadDoc={handleDownload}
+                  onDeleteDoc={handleDeleteDoc}
+                  onExportData={handleExportData}
+                />
+              )}
+
+              {activeSection === 'upload' && (
+                <Upload
+                  onUploadSuccess={handleUploadSuccess}
+                  onNavigate={setActiveSection}
+                />
+              )}
+
+              {activeSection === 'documents' && (
+                <Documents
+                  filteredDocs={filteredDocs}
+                  isLoading={isLoading}
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                  categoryFilter={categoryFilter}
+                  setCategoryFilter={setCategoryFilter}
+                  sortFilter={sortFilter}
+                  setSortFilter={setSortFilter}
+                  viewMode={viewMode}
+                  setViewMode={setViewMode}
+                  stats={stats}
+                  currentUser={currentUser}
+                  selectedDocs={selectedDocs}
+                  setSelectedDocs={setSelectedDocs}
+                  onViewDoc={handleViewDoc}
+                  onDownloadDoc={handleDownload}
+                  onDeleteDoc={handleDeleteDoc}
+                  onBulkDelete={handleBulkDelete}
+                />
+              )}
+
+              {activeSection === 'activity' && (
+                <Activity activityLog={activityLog} />
+              )}
+
+              {activeSection === 'settings' && (
+                <Settings
+                  isDark={isDark}
+                  onThemeToggle={toggleTheme}
+                  currentUser={currentUser}
+                />
+              )}
+            </>
           )}
         </div>
-      </div>
-    </div>
-  </div>
-)}
 
-          {/* Activity */}
-          {activeSection === 'activity' && (
-            <div className="fade-in">
-              <div className="card p-6">
-                <h3 className="font-bold text-xl mb-6">Recent Activity</h3>
-                <div className="space-y-4">
-                  {activityLog.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">No activity yet</p>
-                  ) : (
-                    activityLog.map((log, i) => (
-                      <div key={i} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl">
-                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                          <i className={`fa-solid ${log.type === 'success' ? 'fa-check-circle text-green-500' : log.type === 'warning' ? 'fa-exclamation-triangle text-orange-500' : 'fa-info-circle text-blue-500'} text-xl`}></i>
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-medium">{log.action}</p>
-                          <p className="text-sm text-gray-500">{log.description}</p>
-                          <p className="text-xs text-gray-400 mt-1">{new Date(log.timestamp).toLocaleString('id-ID')}</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+        {/* Mobile Bottom Navigation */}
+        {isMobile && (
+          <nav className="mobile-nav no-print" aria-label="Mobile navigation">
+            <div className="flex justify-around items-center">
+              {[
+                { id: 'dashboard', icon: 'fa-chart-pie', label: 'Home' },
+                { id: 'upload', icon: 'fa-cloud-arrow-up', label: 'Upload' },
+                { id: 'documents', icon: 'fa-folder-open', label: 'Docs' },
+                { id: 'activity', icon: 'fa-clock-rotate-left', label: 'Activity' },
+                { id: 'settings', icon: 'fa-gear', label: 'Settings' },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveSection(item.id)}
+                  className={`mobile-nav-item ${activeSection === item.id ? 'active' : ''}`}
+                  aria-label={item.label}
+                  aria-current={activeSection === item.id ? 'page' : undefined}
+                >
+                  <i className={`fa-solid ${item.icon} text-xl`}></i>
+                  <span>{item.label}</span>
+                </button>
+              ))}
             </div>
-          )}
-
-          {/* Settings */}
-          {activeSection === 'settings' && (
-            <div className="fade-in max-w-2xl mx-auto">
-              <div className="card p-6">
-                <h3 className="font-bold text-xl mb-6">Settings</h3>
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center p-4 bg-gray-50 rounded-xl">
-                    <div>
-                      <p className="font-medium">Dark Mode</p>
-                      <p className="text-sm text-gray-500">Toggle theme</p>
-                    </div>
-                    <button onClick={toggleTheme} className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium">Toggle</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+          </nav>
+        )}
       </main>
-
-      <div id="toastContainer"></div>
     </div>
   );
 }
