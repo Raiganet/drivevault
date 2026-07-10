@@ -19,6 +19,7 @@ export const FILE_CATEGORIES = [
 export const NAVIGATION_ITEMS = [
   { id: 'dashboard', icon: 'fa-chart-pie', label: 'Dashboard' },
   { id: 'upload', icon: 'fa-cloud-arrow-up', label: 'Upload' },
+  { id: 'scanner', icon: 'fa-camera', label: 'Scanner' },
   { id: 'documents', icon: 'fa-folder-open', label: 'Documents' },
   { id: 'activity', icon: 'fa-clock-rotate-left', label: 'Activity Log' },
   { id: 'settings', icon: 'fa-gear', label: 'Settings' },
@@ -26,10 +27,10 @@ export const NAVIGATION_ITEMS = [
 
 export const QUICK_ACTIONS = [
   { id: 'upload', icon: 'fa-cloud-arrow-up', label: 'Upload File', color: 'primary' },
-  { id: 'folder', icon: 'fa-folder-plus', label: 'Create Folder', color: 'info' },
-  { id: 'ocr', icon: 'fa-eye', label: 'OCR Scan', color: 'success' },
-  { id: 'export', icon: 'fa-file-export', label: 'Export CSV', color: 'warning' },
-  { id: 'backup', icon: 'fa-database', label: 'Backup', color: 'purple' },
+  { id: 'scanner', icon: 'fa-camera', label: 'Scan Document', color: 'info' },
+  { id: 'folder', icon: 'fa-folder-plus', label: 'Create Folder', color: 'success' },
+  { id: 'ocr', icon: 'fa-eye', label: 'OCR Scan', color: 'warning' },
+  { id: 'export', icon: 'fa-file-export', label: 'Export CSV', color: 'purple' },
   { id: 'share', icon: 'fa-share-nodes', label: 'Share Link', color: 'pink' },
 ];
 
@@ -42,23 +43,14 @@ export const SORT_OPTIONS = [
   { value: 'size_desc', label: 'Size (Large to Small)' },
 ];
 
-export const NAVIGATION_ITEMS = [
-  { id: 'dashboard', icon: 'fa-chart-pie', label: 'Dashboard' },
-  { id: 'upload', icon: 'fa-cloud-arrow-up', label: 'Upload' },
-  { id: 'scanner', icon: 'fa-camera', label: 'Scanner' },  // ← TAMBAH INI
-  { id: 'documents', icon: 'fa-folder-open', label: 'Documents' },
-  { id: 'activity', icon: 'fa-clock-rotate-left', label: 'Activity Log' },
-  { id: 'settings', icon: 'fa-gear', label: 'Settings' },
-];
-
 export const VIEW_MODES = {
   GRID: 'grid',
   LIST: 'list',
 };
 
 export const THEME_COLORS = {
-  primary: '#4F46E5',
-  secondary: '#7C3AED',
+  primary: '#7C3AED',
+  secondary: '#A855F7',
   success: '#10B981',
   warning: '#F59E0B',
   danger: '#EF4444',

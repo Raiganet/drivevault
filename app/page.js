@@ -10,11 +10,11 @@ import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import Dashboard from '@/components/Dashboard';
 import Upload from '@/components/Upload';
+import Scanner from '@/components/Scanner';
 import Documents from '@/components/Documents';
 import Activity from '@/components/Activity';
 import { DashboardSkeleton } from '@/components/LoadingSkeleton';
 import Settings from '@/components/Settings';
-import Scanner from '@/components/Scanner';
 
 export default function Home() {
   // Hooks
@@ -121,6 +121,7 @@ export default function Home() {
   };
 
   const handleUploadSuccess = () => {
+    loadDocuments();
     addActivity('Upload', 'Uploaded new document(s)', 'success');
   };
 
@@ -201,38 +202,38 @@ export default function Home() {
 
   // Main App
   return (
-   <div className="min-h-screen flex flex-col lg:flex-row bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-colors">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-gray-50 dark:bg-slate-950 transition-colors">
       {/* Sidebar */}
       <Sidebar
-      activeSection={activeSection}
-      setActiveSection={setActiveSection}
-      currentUser={currentUser}
-      stats={stats}
-      onLogout={handleLogout}
-      isMobile={isMobile}
-      isMobileMenuOpen={isMobileMenuOpen}
-      setIsMobileMenuOpen={setIsMobileMenuOpen}
-      isCollapsed={isSidebarCollapsed}
-      setIsCollapsed={setIsSidebarCollapsed}
-    />
-
-      {/* Main Content */}
-       <main className="flex-1 flex flex-col min-h-screen lg:min-h-0 overflow-hidden">
-        {/* Header */}
-        <Header
         activeSection={activeSection}
-        onNavigate={setActiveSection}
-        onThemeToggle={toggleTheme}
-        isDark={isDark}
+        setActiveSection={setActiveSection}
         currentUser={currentUser}
+        stats={stats}
         onLogout={handleLogout}
-        searchQuery={searchTerm}
-        setSearchQuery={setSearchTerm}
-        onUploadClick={() => setActiveSection('upload')}
+        isMobile={isMobile}
+        isMobileMenuOpen={isMobileMenuOpen}
+        setIsMobileMenuOpen={setIsMobileMenuOpen}
+        isCollapsed={isSidebarCollapsed}
+        setIsCollapsed={setIsSidebarCollapsed}
       />
 
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col min-h-screen lg:min-h-0 overflow-hidden">
+        {/* Header */}
+        <Header
+          activeSection={activeSection}
+          onNavigate={setActiveSection}
+          onThemeToggle={toggleTheme}
+          isDark={isDark}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          searchQuery={searchTerm}
+          setSearchQuery={setSearchTerm}
+          onUploadClick={() => setActiveSection('upload')}
+        />
+
         {/* Page Content */}
-       <div className="flex-1 overflow-y-auto p-4 lg:p-8 pb-24 lg:pb-8">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8 pb-24 lg:pb-8">
           {isLoading && activeSection === 'dashboard' ? (
             <DashboardSkeleton />
           ) : (
@@ -256,12 +257,13 @@ export default function Home() {
                   onNavigate={setActiveSection}
                 />
               )}
-{activeSection === 'scanner' && (
-  <Scanner
-    onScanComplete={handleUploadSuccess}
-    onNavigate={setActiveSection}
-  />
-)}
+
+              {activeSection === 'scanner' && (
+                <Scanner
+                  onScanComplete={handleUploadSuccess}
+                  onNavigate={setActiveSection}
+                />
+              )}
 
               {activeSection === 'documents' && (
                 <Documents
@@ -308,8 +310,8 @@ export default function Home() {
               {[
                 { id: 'dashboard', icon: 'fa-chart-pie', label: 'Home' },
                 { id: 'upload', icon: 'fa-cloud-arrow-up', label: 'Upload' },
+                { id: 'scanner', icon: 'fa-camera', label: 'Scan' },
                 { id: 'documents', icon: 'fa-folder-open', label: 'Docs' },
-                { id: 'activity', icon: 'fa-clock-rotate-left', label: 'Activity' },
                 { id: 'settings', icon: 'fa-gear', label: 'Settings' },
               ].map(item => (
                 <button
