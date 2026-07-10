@@ -14,10 +14,10 @@ export default function Settings({ isDark, onThemeToggle, currentUser }) {
           action: (
             <button 
               onClick={onThemeToggle}
-              className="btn-secondary"
+              className="btn-secondary text-sm px-3 py-1.5"
             >
-              <i className={`fa-solid ${isDark ? 'fa-sun' : 'fa-moon'} mr-2`}></i>
-              {isDark ? 'Light Mode' : 'Dark Mode'}
+              <i className={`fa-solid ${isDark ? 'fa-sun' : 'fa-moon'} mr-1.5`}></i>
+              {isDark ? 'Light' : 'Dark'}
             </button>
           ),
         },
@@ -36,7 +36,11 @@ export default function Settings({ isDark, onThemeToggle, currentUser }) {
         {
           label: 'Role',
           description: 'Your account role',
-          value: currentUser?.role?.toUpperCase() || 'GUEST',
+          value: (
+            <span className="badge badge-primary text-xs">
+              {currentUser?.role?.toUpperCase() || 'GUEST'}
+            </span>
+          ),
         },
       ],
     },
@@ -47,19 +51,19 @@ export default function Settings({ isDark, onThemeToggle, currentUser }) {
       items: [
         {
           label: 'Auto-logout Timer',
-          description: 'Automatically logout after 10 minutes of inactivity',
+          description: 'Auto logout after 10 min',
           value: (
-            <span className="badge badge-success">
+            <span className="badge badge-success text-xs">
               <i className="fa-solid fa-check mr-1"></i>
               Enabled
             </span>
           ),
         },
         {
-          label: 'Two-Factor Authentication',
-          description: 'Add an extra layer of security',
+          label: 'Two-Factor Auth',
+          description: 'Extra security layer',
           value: (
-            <span className="badge badge-warning">
+            <span className="badge badge-warning text-xs">
               <i className="fa-solid fa-clock mr-1"></i>
               Coming Soon
             </span>
@@ -76,7 +80,7 @@ export default function Settings({ isDark, onThemeToggle, currentUser }) {
           label: 'Cloud Storage',
           description: 'Google Drive integration',
           value: (
-            <span className="badge badge-success">
+            <span className="badge badge-success text-xs">
               <i className="fa-solid fa-check mr-1"></i>
               Connected
             </span>
@@ -84,7 +88,7 @@ export default function Settings({ isDark, onThemeToggle, currentUser }) {
         },
         {
           label: 'Storage Limit',
-          description: 'Maximum storage capacity',
+          description: 'Maximum capacity',
           value: '15 GB',
         },
       ],
@@ -96,19 +100,19 @@ export default function Settings({ isDark, onThemeToggle, currentUser }) {
       items: [
         {
           label: 'Install App',
-          description: 'Install DriveVault on your device',
+          description: 'Install on your device',
           action: (
-            <button className="btn-primary">
-              <i className="fa-solid fa-download mr-2"></i>
+            <button className="btn-primary text-sm px-3 py-1.5">
+              <i className="fa-solid fa-download mr-1.5"></i>
               Install
             </button>
           ),
         },
         {
           label: 'Offline Mode',
-          description: 'Access documents without internet',
+          description: 'Access without internet',
           value: (
-            <span className="badge badge-success">
+            <span className="badge badge-success text-xs">
               <i className="fa-solid fa-check mr-1"></i>
               Enabled
             </span>
@@ -123,7 +127,7 @@ export default function Settings({ isDark, onThemeToggle, currentUser }) {
       items: [
         {
           label: 'Version',
-          description: 'Current application version',
+          description: 'Current version',
           value: `v${APP_VERSION}`,
         },
         {
@@ -136,40 +140,40 @@ export default function Settings({ isDark, onThemeToggle, currentUser }) {
   ];
 
   return (
-    <div className="fade-in max-w-4xl mx-auto animate-slide-up">
-      <div className="card-elevated p-6 lg:p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-4 mb-2">
-            <div className="w-14 h-14 gradient-purple rounded-2xl flex items-center justify-center shadow-lg">
-              <i className="fa-solid fa-gear text-white text-2xl"></i>
+    <div className="fade-in max-w-3xl mx-auto animate-slide-up">
+      <div className="card-elevated p-4 lg:p-6">
+        {/* Header - Compact */}
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 lg:w-12 lg:h-12 gradient-purple rounded-xl flex items-center justify-center shadow-lg">
+              <i className="fa-solid fa-gear text-white text-lg lg:text-2xl"></i>
             </div>
             <div>
-              <h2 className="text-2xl lg:text-3xl font-bold">Settings</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <h2 className="text-xl lg:text-2xl font-bold">Settings</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 Manage your preferences and configuration
               </p>
             </div>
           </div>
         </div>
 
-        {/* Settings Sections */}
-        <div className="space-y-6">
+        {/* Settings Sections - Compact */}
+        <div className="space-y-4">
           {settingsSections.map(section => (
-            <div key={section.id} className="card p-6">
-              <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                <i className={`fa-solid ${section.icon} text-primary`}></i>
+            <div key={section.id} className="card p-4">
+              <h3 className="font-bold text-base mb-3 flex items-center gap-2">
+                <i className={`fa-solid ${section.icon} text-primary text-sm`}></i>
                 {section.title}
               </h3>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {section.items.map((item, idx) => (
                   <div 
                     key={idx}
-                    className="flex flex-wrap items-center justify-between gap-4 p-4 bg-gray-50 dark:bg-slate-800 rounded-xl"
+                    className="flex flex-wrap items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm">{item.label}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                         {item.description}
                       </p>
                     </div>

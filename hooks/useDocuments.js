@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { showToast } from '@/utils/helpers';
+import { showToast, extractFileIdFromUrl } from '@/utils/helpers';
 
 export function useDocuments() {
   const [allDocs, setAllDocs] = useState([]);
@@ -82,24 +82,28 @@ export function useDocuments() {
   }, [allDocs, searchTerm, categoryFilter, sortFilter]);
 
   const deleteDoc = useCallback(async (id, name) => {
-    try {
-      const res = await fetch('/api/documents', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: [id] }),
-      });
-      const data = await res.json();
-      
-      if (data.success) {
-        showToast(data.message, 'success');
-        loadDocuments();
-      } else {
-        showToast(data.message, 'error');
-      }
-    } catch (error) {
-      showToast('Delete error: ' + error.message, 'error');
+  try {
+    console.log('️ Deleting document:', id, name);
+    
+    const res = await fetch('/api/documents', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [id] }),
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showToast(data.message, 'success');
+      // Reload documents setelah delete
+      await loadDocuments();
+    } else {
+      showToast(data.message, 'error');
     }
-  }, [loadDocuments]);
+  } catch (error) {
+    console.error('❌ Delete error:', error);
+    showToast('Delete error: ' + error.message, 'error');
+  }
+}, [loadDocuments]);
 
   const bulkDelete = useCallback(async (ids) => {
     try {
@@ -128,26 +132,43 @@ export function useDocuments() {
 
   const handleDownload = useCallback(async (doc) => {
     try {
-      const urlParts = doc.url.split('/');
-      const fileIdIndex = urlParts.indexOf('d') + 1;
-      const fileId = urlParts[fileIdIndex];
+      console.log('📥 Download attempt for document:', doc);
+      console.log('Document URL:', doc.url);
+      
+      // Extract file ID using the imported function
+      const fileId = extractFileIdFromUrl(doc.url);
       
       if (!fileId) {
-        throw new Error('Invalid file URL');
+        console.error('❌ Could not extract file ID from URL:', doc.url);
+        showToast('Invalid file URL. Please check the document.', 'error');
+        return;
       }
 
+      console.log('✅ File ID extracted:', fileId);
       showToast(`Downloading ${doc.fileName}...`, 'info');
       
-      const downloadUrl = `/api/download?fileId=${fileId}&name=${encodeURIComponent(doc.fileName)}`;
+      // Create download URL
+      const downloadUrl = `/api/download?fileId=${encodeURIComponent(fileId)}&name=${encodeURIComponent(doc.fileName)}`;
+      
+      console.log('🔗 Download URL:', downloadUrl);
+      
+      // Create link and trigger download
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.download = doc.fileName;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
       
       showToast('Download started!', 'success');
     } catch (error) {
+      console.error('❌ Download error:', error);
       showToast('Download failed: ' + error.message, 'error');
     }
   }, []);

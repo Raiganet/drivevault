@@ -93,6 +93,21 @@ export async function POST(req) {
 
     console.log('✅ Permissions set');
 
+    // ========================================
+    // FORMAT TANGGAL INDONESIA - DI LUAR ARRAY
+    // ========================================
+    const uploadDate = new Date().toLocaleString('id-ID', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    
+    console.log('📅 Upload date:', uploadDate);
+
     // Add to Sheet
     const docId = 'DOC-' + Math.random().toString(36).substr(2, 9).toUpperCase();
     
@@ -105,7 +120,7 @@ export async function POST(req) {
           docId, 
           customName, 
           category || 'Lainnya',
-          new Date().toISOString(),
+          uploadDate,  // ← Gunakan variabel yang sudah dideklarasikan
           `https://drive.google.com/file/d/${driveRes.data.id}/view`,
           description,
           buffer.length.toString()

@@ -29,41 +29,91 @@ export async function GET() {
     const data = rows.slice(1); // Skip header
     const categories = {};
     let totalSizeFromSheet = 0;
+    const validDocuments = [];
 
-    const documents = data.map(row => {
-      const category = row[2] || 'Lainnya';
-      const size = parseInt(row[6]) || 0;
-      categories[category] = (categories[category] || 0) + 1;
-      totalSizeFromSheet += size;
-
-      // Format date
-      let formattedDate = 'Unknown';
-      if (row[3]) {
-        try {
-          const date = new Date(row[3]);
-          formattedDate = date.toLocaleString('id-ID', { 
-            day: '2-digit', 
-            month: 'short', 
-            year: 'numeric', 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          });
-        } catch (e) {
-          formattedDate = row[3];
+    for (const row of data) {
+      try {
+        // Validasi row data
+        if (!row[0] || !row[1] || !row[4]) {
+          console.warn('⚠️ Skipping incomplete row:', row);
+          continue;
         }
-      }
 
-      return {
-        id: row[0] || '',
-        fileName: row[1] || 'Unknown',
-        category,
-        date: formattedDate,
-        url: row[4] || '#',
-        description: row[5] || '-',
-        size,
-        sizeFormatted: formatBytes(size)
-      };
-    }).reverse();
+        const docId = row[0];
+        const fileName = row[1] || 'Unknown';
+        const category = row[2] || 'Lainnya';
+        const date = row[3] || '';
+        const url = row[4];
+        const description = row[5] || '-';
+        const size = parseInt(row[6]) || 0;
+
+        // Extract file ID dari URL
+        const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        if (!fileIdMatch) {
+          console.warn('⚠️ Invalid URL format for file:', fileName);
+          continue;
+        }
+
+        const fileId = fileIdMatch[1];
+
+        // Cek apakah file masih ada di Google Drive
+        try {
+          const driveFile = await drive.files.get({
+            fileId: fileId,
+            fields: 'id, name, mimeType, size, trashed'
+          });
+
+          // Skip jika file sudah di-trash
+          if (driveFile.data.trashed) {
+            console.log('🗑️ File already trashed in Drive:', fileName);
+            continue;
+          }
+
+          // Update size dari Drive jika berbeda
+          const actualSize = driveFile.data.size ? parseInt(driveFile.data.size) : size;
+          
+          categories[category] = (categories[category] || 0) + 1;
+          totalSizeFromSheet += actualSize;
+
+          // Format date
+          let formattedDate = 'Unknown';
+          if (date) {
+            try {
+              const dateObj = new Date(date);
+              formattedDate = dateObj.toLocaleString('id-ID', { 
+                day: '2-digit', 
+                month: 'short', 
+                year: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              });
+            } catch (e) {
+              formattedDate = date;
+            }
+          }
+
+          validDocuments.push({
+            id: docId,
+            fileName: driveFile.data.name || fileName,
+            category,
+            date: formattedDate,
+            url: url,
+            description: description,
+            size: actualSize,
+            sizeFormatted: formatBytes(actualSize)
+          });
+
+        } catch (driveError) {
+          console.warn('⚠️ File not found in Drive or access denied:', fileName, driveError.message);
+          // Skip file yang tidak ada di Drive
+          continue;
+        }
+
+      } catch (rowError) {
+        console.error('❌ Error processing row:', rowError);
+        continue;
+      }
+    }
 
     // Get folder size from Drive
     console.log('📁 Getting folder size from Drive...');
@@ -90,16 +140,16 @@ export async function GET() {
 
     const result = {
       success: true,
-      data: documents,
+      data: validDocuments.reverse(), // Reverse untuk tampilkan yang terbaru
       stats: {
-        totalFiles: documents.length,
+        totalFiles: validDocuments.length,
         totalSize: folderSize,
         totalSizeFormatted: formatBytes(folderSize),
         categories
       }
     };
 
-    console.log('✅ Documents fetched successfully:', documents.length, 'files');
+    console.log('✅ Documents fetched successfully:', validDocuments.length, 'valid files');
     console.log('📊 Stats:', result.stats);
     return NextResponse.json(result);
 
@@ -145,7 +195,7 @@ export async function DELETE(req) {
       // Find row with this ID
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] === id) {
-          // Delete from Drive
+          // Delete from Drive (move to trash)
           try {
             const fileIdMatch = rows[i][4]?.match(/\/d\/([^/]+)/);
             if (fileIdMatch && fileIdMatch[1]) {
@@ -153,16 +203,18 @@ export async function DELETE(req) {
                 fileId: fileIdMatch[1],
                 requestBody: { trashed: true }
               });
+              console.log('️ Moved to trash:', rows[i][1]);
             }
           } catch (e) {
             console.error('Error deleting file from Drive:', e.message);
           }
 
-          // Delete from Sheet
+          // Delete from Sheet (clear row)
           await sheets.spreadsheets.values.clear({
             spreadsheetId: process.env.SHEET_ID,
             range: `${process.env.SHEET_NAME}!A${i + 1}:G${i + 1}`
           });
+          console.log('📄 Deleted from sheet:', rows[i][1]);
 
           deletedCount++;
           break;

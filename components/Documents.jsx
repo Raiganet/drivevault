@@ -36,7 +36,7 @@ export default function Documents({
       newSet.add(id);
     }
     setSelectedDocs(newSet);
-    setIsSelectAll(newSet.size === filteredDocs.length);
+    setIsSelectAll(newSet.size === filteredDocs.length && filteredDocs.length > 0);
   };
 
   const handleSelectAll = () => {
@@ -68,22 +68,27 @@ export default function Documents({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 lg:space-y-6 animate-fade-in">
       {/* Filters Bar */}
-      <div className="card p-4 lg:p-6">
+      <div className="card p-3 lg:p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          {/* Search */}
-          <div className="relative md:col-span-2">
-            <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-            <input 
-              type="text" 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by name, category, or description..." 
-              className="input pl-12"
-              aria-label="Search documents"
-            />
-          </div>
+          {/* Search - Fixed Layout */}
+          {/* Search - Dengan Focus Border yang Halus */}
+<div className="relative md:col-span-2">
+  <div className="flex items-center bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden transition-all hover:border-purple-300 dark:hover:border-purple-600 focus-within:border-purple-400 dark:focus-within:border-purple-500 focus-within:shadow-lg focus-within:shadow-purple-500/10">
+    <div className="pl-4 text-gray-400 flex-shrink-0">
+      <i className="fa-solid fa-magnifying-glass"></i>
+    </div>
+    <input 
+      type="text" 
+      value={searchTerm}
+      onChange={(e) => setSearchTerm(e.target.value)}
+      placeholder="Search by name, category, or description..." 
+      className="flex-1 px-3 py-3 bg-transparent border-0 focus:ring-0 focus:outline-none text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+      aria-label="Search documents"
+    />
+  </div>
+</div>
           
           {/* Category Filter */}
           <select 
@@ -93,9 +98,6 @@ export default function Documents({
             aria-label="Filter by category"
           >
             <option value="">All Categories</option>
-            {Object.keys(stats.categories || {}).map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
             {FILE_CATEGORIES.map(cat => (
               <option key={cat.value} value={cat.value}>{cat.label}</option>
             ))}
@@ -171,7 +173,7 @@ export default function Documents({
                 className="btn-danger text-sm"
               >
                 <i className="fa-solid fa-trash mr-1"></i>
-                Delete Selected
+                <span className="hidden sm:inline">Delete Selected</span>
               </button>
             )}
           </div>
@@ -181,15 +183,14 @@ export default function Documents({
       {/* Results Info */}
       <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
         <span>
-          Showing <span className="font-semibold text-gray-900 dark:text-white">{filteredDocs.length}</span> of{' '}
-          <span className="font-semibold text-gray-900 dark:text-white">{filteredDocs.length}</span> documents
+          Showing <span className="font-semibold text-gray-900 dark:text-white">{filteredDocs.length}</span> documents
         </span>
       </div>
 
       {/* Documents Grid/List */}
       {isLoading ? (
         viewMode === VIEW_MODES.GRID ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 lg:gap-6">
             {[...Array(8)].map((_, i) => (
               <SkeletonDocumentCard key={i} />
             ))}
@@ -206,15 +207,9 @@ export default function Documents({
               ? 'Try adjusting your search or filter criteria.'
               : 'Upload your first document to get started.'
           }
-          action={!searchTerm && !categoryFilter && (
-            <button className="btn-primary">
-              <i className="fa-solid fa-cloud-arrow-up mr-2"></i>
-              Upload Document
-            </button>
-          )}
         />
       ) : viewMode === VIEW_MODES.GRID ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 lg:gap-6">
           {filteredDocs.map(doc => (
             <DocumentCard
               key={doc.id}
@@ -227,7 +222,7 @@ export default function Documents({
           ))}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2 lg:space-y-3">
           {filteredDocs.map(doc => (
             <DocumentCard
               key={doc.id}

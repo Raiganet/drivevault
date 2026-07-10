@@ -13,9 +13,7 @@ export default function Header({
   onUploadClick
 }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const profileRef = useRef(null);
-  const searchRef = useRef(null);
 
   const today = new Date().toLocaleDateString('id-ID', { 
     weekday: 'long', 
@@ -29,9 +27,6 @@ export default function Header({
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setIsProfileOpen(false);
       }
-      if (searchRef.current && !searchRef.current.contains(event.target)) {
-        setIsSearchOpen(false);
-      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -41,10 +36,9 @@ export default function Header({
     <header className="glass-strong sticky top-0 z-30 border-b border-gray-200 dark:border-slate-800 animate-slide-down">
       <div className="px-4 lg:px-8 py-4">
         <div className="flex items-center justify-between gap-4">
-          {/* Left Section */}
+          {/* Left Section - Page Title */}
           <div className="flex items-center gap-4 flex-1">
-            {/* Page Title */}
-            <div className="hidden md:block">
+            <div>
               <h1 className="text-2xl font-bold capitalize text-gray-900 dark:text-white">
                 {activeSection}
               </h1>
@@ -52,37 +46,10 @@ export default function Header({
                 {today}
               </p>
             </div>
-
-            {/* Search Bar */}
-            <div className={`relative flex-1 max-w-md transition-all ${isSearchOpen ? 'block' : 'hidden md:block'}`} ref={searchRef}>
-              <div className="relative">
-                <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                <input 
-                  type="text" 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery && setSearchQuery(e.target.value)}
-                  placeholder="Search documents, files..." 
-                  className="input pl-12 pr-4 py-2.5 w-full"
-                  aria-label="Search"
-                />
-                <kbd className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400 bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded hidden lg:block">
-                  ⌘K
-                </kbd>
-              </div>
-            </div>
           </div>
 
           {/* Right Section */}
           <div className="flex items-center gap-2 lg:gap-3">
-            {/* Mobile Search Toggle */}
-            <button 
-              onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition md:hidden"
-              aria-label="Toggle search"
-            >
-              <i className="fa-solid fa-magnifying-glass text-lg"></i>
-            </button>
-
             {/* Theme Toggle */}
             <button 
               onClick={onThemeToggle}
@@ -168,23 +135,6 @@ export default function Header({
             </div>
           </div>
         </div>
-
-        {/* Mobile Search (Expanded) */}
-        {isSearchOpen && (
-          <div className="mt-3 md:hidden" ref={searchRef}>
-            <div className="relative">
-              <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-              <input 
-                type="text" 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery && setSearchQuery(e.target.value)}
-                placeholder="Search documents..." 
-                className="input pl-12 pr-4 py-2.5 w-full"
-                autoFocus
-              />
-            </div>
-          </div>
-        )}
       </div>
     </header>
   );

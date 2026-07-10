@@ -42,6 +42,15 @@ export const SORT_OPTIONS = [
   { value: 'size_desc', label: 'Size (Large to Small)' },
 ];
 
+export const NAVIGATION_ITEMS = [
+  { id: 'dashboard', icon: 'fa-chart-pie', label: 'Dashboard' },
+  { id: 'upload', icon: 'fa-cloud-arrow-up', label: 'Upload' },
+  { id: 'scanner', icon: 'fa-camera', label: 'Scanner' },  // ← TAMBAH INI
+  { id: 'documents', icon: 'fa-folder-open', label: 'Documents' },
+  { id: 'activity', icon: 'fa-clock-rotate-left', label: 'Activity Log' },
+  { id: 'settings', icon: 'fa-gear', label: 'Settings' },
+];
+
 export const VIEW_MODES = {
   GRID: 'grid',
   LIST: 'list',

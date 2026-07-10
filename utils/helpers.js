@@ -1,3 +1,57 @@
+/**
+ * Extract File ID from Google Drive URL
+ * @param {string} url - Google Drive file URL
+ * @returns {string|null} - File ID or null
+ */
+export function extractFileIdFromUrl(url) {
+  if (!url) {
+    console.error('URL is empty or undefined');
+    return null;
+  }
+
+  try {
+    // Format 1: https://drive.google.com/file/d/FILE_ID/view
+    // atau https://drive.google.com/file/d/FILE_ID/view?usp=drivesdk
+    const match1 = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match1 && match1[1]) {
+      return match1[1];
+    }
+
+    // Format 2: https://drive.google.com/open?id=FILE_ID
+    const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (match2 && match2[1]) {
+      return match2[1];
+    }
+
+    // Format 3: https://drive.google.com/uc?id=FILE_ID
+    const match3 = url.match(/uc\?id=([a-zA-Z0-9_-]+)/);
+    if (match3 && match3[1]) {
+      return match3[1];
+    }
+
+    // Format 4: Direct file ID (jika sudah berupa ID)
+    if (/^[a-zA-Z0-9_-]{20,}$/.test(url.trim())) {
+      return url.trim();
+    }
+
+    // Format 5: Manual parsing
+    const urlParts = url.split('/');
+    const dIndex = urlParts.indexOf('d');
+    if (dIndex !== -1 && dIndex + 1 < urlParts.length) {
+      return urlParts[dIndex + 1].split('?')[0].split('&')[0];
+    }
+
+    console.error('Could not extract file ID from URL:', url);
+    return null;
+  } catch (error) {
+    console.error('Error extracting file ID:', error);
+    return null;
+  }
+}
+
+/**
+ * Format bytes to human-readable format
+ */
 export function formatBytes(bytes, decimals = 2) {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -7,6 +61,9 @@ export function formatBytes(bytes, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+/**
+ * Format date to Indonesian locale
+ */
 export function formatDate(dateString) {
   if (!dateString) return 'Unknown';
   try {
@@ -23,6 +80,9 @@ export function formatDate(dateString) {
   }
 }
 
+/**
+ * Format relative time (e.g., "2 hours ago")
+ */
 export function formatRelativeTime(dateString) {
   if (!dateString) return 'Unknown';
   try {
@@ -40,10 +100,16 @@ export function formatRelativeTime(dateString) {
   }
 }
 
+/**
+ * Get file extension from filename
+ */
 export function getFileExtension(filename) {
   return filename.slice((filename.lastIndexOf('.') - 1 >>> 0) + 2).toUpperCase();
 }
 
+/**
+ * Get appropriate icon for file type
+ */
 export function getFileIcon(filename) {
   const ext = getFileExtension(filename).toLowerCase();
   const iconMap = {
@@ -70,6 +136,9 @@ export function getFileIcon(filename) {
   return iconMap[ext] || 'fa-file';
 }
 
+/**
+ * Get color scheme for file type
+ */
 export function getFileColor(filename) {
   const ext = getFileExtension(filename).toLowerCase();
   const colorMap = {
@@ -91,12 +160,18 @@ export function getFileColor(filename) {
   return colorMap[ext] || 'secondary';
 }
 
+/**
+ * Truncate text with ellipsis
+ */
 export function truncateText(text, maxLength = 50) {
   if (!text) return '';
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
 }
 
+/**
+ * Debounce function
+ */
 export function debounce(func, wait) {
   let timeout;
   return function executedFunction(...args) {
@@ -109,19 +184,22 @@ export function debounce(func, wait) {
   };
 }
 
+/**
+ * Generate unique document ID
+ */
 export function generateId() {
   return 'DOC-' + Math.random().toString(36).substr(2, 9).toUpperCase();
 }
 
-export function extractFileIdFromUrl(url) {
-  if (!url) return null;
-  const match = url.match(/\/d\/([^/]+)/);
-  return match ? match[1] : null;
-}
-
+/**
+ * Show toast notification
+ */
 export function showToast(message, type = 'info', duration = 3000) {
   const container = document.getElementById('toastContainer');
-  if (!container) return;
+  if (!container) {
+    console.log('Toast:', message, type);
+    return;
+  }
 
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
@@ -150,9 +228,17 @@ export function showToast(message, type = 'info', duration = 3000) {
   }, duration);
 }
 
+/**
+ * Show confirmation dialog
+ */
 export function confirmDialog(message, onConfirm) {
   const container = document.getElementById('modalContainer');
-  if (!container) return;
+  if (!container) {
+    if (window.confirm(message)) {
+      onConfirm();
+    }
+    return;
+  }
 
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
@@ -186,6 +272,9 @@ export function confirmDialog(message, onConfirm) {
   };
 }
 
+/**
+ * Copy text to clipboard
+ */
 export function copyToClipboard(text) {
   navigator.clipboard.writeText(text).then(() => {
     showToast('Copied to clipboard!', 'success');
@@ -194,6 +283,9 @@ export function copyToClipboard(text) {
   });
 }
 
+/**
+ * Trigger file download
+ */
 export function downloadFile(url, filename) {
   const link = document.createElement('a');
   link.href = url;
@@ -203,6 +295,9 @@ export function downloadFile(url, filename) {
   document.body.removeChild(link);
 }
 
+/**
+ * Parse JWT token
+ */
 export function parseJwt(token) {
   try {
     const base64Url = token.split('.')[1];
@@ -219,16 +314,25 @@ export function parseJwt(token) {
   }
 }
 
+/**
+ * Check if JWT token is expired
+ */
 export function isTokenExpired(token) {
   const decoded = parseJwt(token);
   if (!decoded || !decoded.exp) return true;
   return Date.now() >= decoded.exp * 1000;
 }
 
+/**
+ * Calculate storage percentage
+ */
 export function getStoragePercentage(used, total) {
   return Math.min((used / total) * 100, 100);
 }
 
+/**
+ * Get storage status based on percentage
+ */
 export function getStorageStatus(percentage) {
   if (percentage < 50) return { label: 'Good', color: 'success' };
   if (percentage < 75) return { label: 'Moderate', color: 'warning' };
