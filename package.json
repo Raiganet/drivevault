@@ -14,8 +14,9 @@
     "dotenv": "^17.4.2",
     "googleapis": "^173.0.0",
     "jsonwebtoken": "^9.0.2",
-    "jspdf": "^4.2.1",
-    "next": "^16.2.10",
+    "next": "^9.3.3",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.1.200",
     "react": "^18.3.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.0"
