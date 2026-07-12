@@ -15,6 +15,8 @@ import Activity from '@/components/Activity';
 import { DashboardSkeleton } from '@/components/LoadingSkeleton';
 import Settings from '@/components/Settings';
 import PDFTools from '@/components/PDFTools';
+import Scanner from '@/components/Scanner';
+import OCRScanner from '@/components/OCRScanner';
 
 export default function Home() {
   // Hooks
@@ -157,43 +159,47 @@ export default function Home() {
             <p className="text-gray-500 dark:text-gray-400">Enterprise Document Management</p>
           </div>
           
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Username</label>
-              <div className="relative">
-                <i className="fa-solid fa-user absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                <input 
-                  type="text" 
-                  name="username"
-                  className="input pl-12"
-                  placeholder="admin or guest" 
-                  required 
-                />
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Password</label>
-              <div className="relative">
-                <i className="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                <input 
-                  type="password" 
-                  name="password"
-                  className="input pl-12"
-                  placeholder="••••••••" 
-                  required 
-                />
-              </div>
-            </div>
-            
-            <button 
-              type="submit" 
-              className="btn-primary w-full py-3"
-            >
-              <i className="fa-solid fa-right-to-bracket"></i>
-              Sign In
-            </button>
-          </form>
+         <form onSubmit={handleLogin} className="space-y-4">
+  <div>
+    <label className="block text-sm font-medium mb-2">Username</label>
+    <div className="relative">
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+        <i className="fa-solid fa-user"></i>
+      </div>
+      <input 
+        type="text" 
+        name="username"
+        className="input pl-12 pr-4 py-3 w-full"
+        placeholder="admin or guest" 
+        required 
+      />
+    </div>
+  </div>
+  
+  <div>
+    <label className="block text-sm font-medium mb-2">Password</label>
+    <div className="relative">
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+        <i className="fa-solid fa-lock"></i>
+      </div>
+      <input 
+        type="password" 
+        name="password"
+        className="input pl-12 pr-4 py-3 w-full"
+        placeholder="••••••••" 
+        required 
+      />
+    </div>
+  </div>
+  
+  <button 
+    type="submit" 
+    className="btn-primary w-full py-3"
+  >
+    <i className="fa-solid fa-right-to-bracket"></i>
+    Sign In
+  </button>
+</form>
         </div>
       </div>
     );
@@ -203,33 +209,35 @@ export default function Home() {
   return (
    <div className="min-h-screen flex flex-col lg:flex-row bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-colors">
       {/* Sidebar */}
-      <Sidebar
-      activeSection={activeSection}
-      setActiveSection={setActiveSection}
-      currentUser={currentUser}
-      stats={stats}
-      onLogout={handleLogout}
-      isMobile={isMobile}
-      isMobileMenuOpen={isMobileMenuOpen}
-      setIsMobileMenuOpen={setIsMobileMenuOpen}
-      isCollapsed={isSidebarCollapsed}
-      setIsCollapsed={setIsSidebarCollapsed}
-    />
+     <Sidebar
+  activeSection={activeSection}
+  setActiveSection={setActiveSection}
+  currentUser={currentUser}
+  stats={stats}
+  onLogout={handleLogout}
+  isMobile={isMobile}
+  isMobileMenuOpen={isMobileMenuOpen}
+  setIsMobileMenuOpen={setIsMobileMenuOpen}
+  isCollapsed={isSidebarCollapsed}
+  setIsCollapsed={setIsSidebarCollapsed}
+/>
 
       {/* Main Content */}
        <main className="flex-1 flex flex-col min-h-screen lg:min-h-0 overflow-hidden">
         {/* Header */}
         <Header
-        activeSection={activeSection}
-        onNavigate={setActiveSection}
-        onThemeToggle={toggleTheme}
-        isDark={isDark}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-        searchQuery={searchTerm}
-        setSearchQuery={setSearchTerm}
-        onUploadClick={() => setActiveSection('upload')}
-      />
+  activeSection={activeSection}
+  onNavigate={setActiveSection}
+  onThemeToggle={toggleTheme}
+  isDark={isDark}
+  currentUser={currentUser}
+  onLogout={handleLogout}
+  searchQuery={searchTerm}
+  setSearchQuery={setSearchTerm}
+  onUploadClick={() => setActiveSection('upload')}
+  isMobile={isMobile}
+  setIsMobileMenuOpen={setIsMobileMenuOpen}
+/>
 
         {/* Page Content */}
        <div className="flex-1 overflow-y-auto p-4 lg:p-8 pb-24 lg:pb-8">
@@ -256,6 +264,19 @@ export default function Home() {
                   onNavigate={setActiveSection}
                 />
               )}
+
+{activeSection === 'scanner' && (
+  <Scanner
+    onScanComplete={handleUploadSuccess}
+    onNavigate={setActiveSection}
+  />
+)}
+{activeSection === 'ocr' && (
+  <OCRScanner
+    onOCRComplete={handleUploadSuccess}
+    onNavigate={setActiveSection}
+  />
+)}
 
               {activeSection === 'documents' && (
                 <Documents

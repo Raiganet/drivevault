@@ -134,16 +134,36 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
       const arrayBuffer = await files[0].arrayBuffer();
       const originalSize = files[0].size;
 
-      const pdfDoc = await PDFDocument.load(arrayBuffer);
-      
-      const useObjectStreams = compressionLevel !== 'low';
-      const compressStreams = compressionLevel === 'high';
-
-      const pdfBytes = await pdfDoc.save({
-        useObjectStreams,
-        addDefaultPage: false,
-        objectsPerTick: compressStreams ? 50 : undefined,
+      const pdfDoc = await PDFDocument.load(arrayBuffer, { 
+        ignoreEncryption: true,
+        updateMetadata: false 
       });
+      
+      // Compression settings based on level
+      let pdfBytes;
+      
+      if (compressionLevel === 'low') {
+        // Minimal compression - keep quality
+        pdfBytes = await pdfDoc.save({
+          useObjectStreams: false,
+          addDefaultPage: false,
+        });
+      } else if (compressionLevel === 'medium') {
+        // Medium compression
+        pdfBytes = await pdfDoc.save({
+          useObjectStreams: true,
+          addDefaultPage: false,
+          objectsPerTick: 100,
+        });
+      } else {
+        // High compression - aggressive
+        pdfBytes = await pdfDoc.save({
+          useObjectStreams: true,
+          addDefaultPage: false,
+          objectsPerTick: 50,
+          useXRefStream: true,
+        });
+      }
 
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const pdfFile = new File([blob], `compressed_${Date.now()}.pdf`, { type: 'application/pdf' });
@@ -151,8 +171,13 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
       const compressedSize = pdfFile.size;
       const reduction = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
 
-      await uploadToDriveVault(pdfFile, `Compressed PDF (-${reduction}%)`);
-      showToast(`Ukuran berkurang ${reduction}%`, 'success');
+      if (reduction <= 0) {
+        showToast('PDF sudah teroptimasi. Tidak bisa dikompres lebih lanjut.', 'warning');
+      } else {
+        showToast(`Ukuran berkurang ${reduction}% (${(originalSize/1024/1024).toFixed(2)}MB → ${(compressedSize/1024/1024).toFixed(2)}MB)`, 'success');
+      }
+
+      await uploadToDriveVault(pdfFile, `Compressed PDF (${compressionLevel} -${reduction}%)`);
     } catch (error) {
       console.error('Compress error:', error);
       showToast('Error mengkompres PDF: ' + error.message, 'error');
@@ -214,9 +239,9 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
   };
 
   const tools = [
-    { id: 'merge', label: 'Merge PDF', icon: 'fa-object-group', color: 'primary', desc: 'Gabung beberapa PDF jadi satu' },
-    { id: 'split', label: 'Split PDF', icon: 'fa-object-ungroup', color: 'warning', desc: 'Pisah halaman PDF' },
-    { id: 'compress', label: 'Compress PDF', icon: 'fa-compress-arrows-alt', color: 'success', desc: 'Kecilkan ukuran PDF' },
+    { id: 'merge', label: 'Merge PDF', icon: 'fa-object-group', desc: 'Gabung beberapa PDF jadi satu' },
+    { id: 'split', label: 'Split PDF', icon: 'fa-object-ungroup', desc: 'Pisah halaman PDF' },
+    { id: 'compress', label: 'Compress PDF', icon: 'fa-compress-arrows-alt', desc: 'Kecilkan ukuran PDF' },
   ];
 
   return (
@@ -245,11 +270,11 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
               onClick={() => { setActiveTool(tool.id); setFiles([]); }}
               className={`p-4 rounded-xl border-2 transition text-left ${
                 activeTool === tool.id
-                  ? 'border-primary bg-primary/10'
-                  : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'
+                  ? 'border-primary bg-primary/10 shadow-lg'
+                  : 'border-gray-200 dark:border-slate-700 hover:border-primary/50'
               }`}
             >
-              <div className={`w-12 h-12 rounded-lg gradient-${tool.color} flex items-center justify-center mb-3`}>
+              <div className="w-12 h-12 rounded-lg gradient-primary flex items-center justify-center mb-3">
                 <i className={`fa-solid ${tool.icon} text-white text-xl`}></i>
               </div>
               <h3 className="font-bold text-lg mb-1">{tool.label}</h3>
@@ -377,28 +402,40 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
           </div>
         )}
 
-        {/* Compression Options */}
+        {/* Compression Options - FIXED */}
         {activeTool === 'compress' && files.length === 1 && (
           <div className="mb-6">
-            <label className="block text-sm font-medium mb-2">
+            <label className="block text-sm font-medium mb-3">
               Tingkat Kompresi:
             </label>
             <div className="grid grid-cols-3 gap-3">
-              {['low', 'medium', 'high'].map(level => (
+              {[
+                { level: 'low', label: 'Low', desc: 'Kualitas terbaik' },
+                { level: 'medium', label: 'Medium', desc: 'Seimbang' },
+                { level: 'high', label: 'High', desc: 'Ukuran terkecil' }
+              ].map(option => (
                 <button
-                  key={level}
-                  onClick={() => setCompressionLevel(level)}
-                  className={`p-3 rounded-lg border-2 capitalize transition ${
-                    compressionLevel === level
-                      ? 'border-primary bg-primary/10'
-                      : 'border-gray-200 dark:border-slate-700'
+                  key={option.level}
+                  onClick={() => setCompressionLevel(option.level)}
+                  className={`p-4 rounded-lg border-2 transition-all ${
+                    compressionLevel === option.level
+                      ? 'border-primary bg-primary/20 shadow-lg scale-105'
+                      : 'border-gray-200 dark:border-slate-700 hover:border-primary/50'
                   }`}
                 >
-                  <span className="font-medium text-sm">{level}</span>
+                  <span className={`font-bold text-sm block mb-1 ${
+                    compressionLevel === option.level ? 'text-primary' : ''
+                  }`}>
+                    {option.label}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {option.desc}
+                  </span>
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-gray-500 mt-3 flex items-center gap-2">
+              <i className="fa-solid fa-info-circle"></i>
               Low = Kualitas terbaik, High = Ukuran terkecil
             </p>
           </div>
@@ -438,7 +475,7 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
             <span>
               {activeTool === 'merge' && 'Gabungkan beberapa file PDF menjadi satu dokumen. Urutan file dapat diatur.'}
               {activeTool === 'split' && 'Pisahkan halaman tertentu dari PDF. Gunakan koma untuk halaman individual atau strip untuk range (contoh: 1,3,5-8).'}
-              {activeTool === 'compress' && 'Kurangi ukuran file PDF dengan mempertahankan kualitas. Pilih tingkat kompresi sesuai kebutuhan.'}
+              {activeTool === 'compress' && 'Kurangi ukuran file PDF dengan mengoptimalkan struktur. Catatan: PDF dengan gambar besar mungkin tidak bisa dikompres signifikan tanpa mengurangi kualitas gambar.'}
             </span>
           </p>
         </div>

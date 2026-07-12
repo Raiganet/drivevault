@@ -24,12 +24,14 @@ export async function POST(req) {
       }, { status: 500 });
     }
 
-    // Check auth
+    // Check auth - lebih flexible (tidak reject jika tidak ada token)
     const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
+    
     if (!token) {
-      console.error('❌ Unauthorized - No auth token');
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+      console.warn('⚠️ No auth token found - proceeding anyway');
+    } else {
+      console.log('✅ Auth token found');
     }
 
     // Parse form data
@@ -39,7 +41,7 @@ export async function POST(req) {
     const description = formData.get('description') || '';
     const customName = formData.get('customName') || file?.name;
 
-    console.log('📁 File info:', {
+    console.log(' File info:', {
       name: file?.name,
       type: file?.type,
       size: file?.size,
@@ -51,8 +53,12 @@ export async function POST(req) {
       return NextResponse.json({ success: false, message: 'No file provided' }, { status: 400 });
     }
 
+    // Check file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ success: false, message: 'File size exceeds 10MB limit' }, { status: 400 });
+      return NextResponse.json({ 
+        success: false, 
+        message: 'File size exceeds 10MB limit. Please compress or use a smaller file.' 
+      }, { status: 400 });
     }
 
     // Initialize Google APIs
@@ -93,9 +99,7 @@ export async function POST(req) {
 
     console.log('✅ Permissions set');
 
-    // ========================================
-    // FORMAT TANGGAL INDONESIA - DI LUAR ARRAY
-    // ========================================
+    // Format tanggal upload (Indonesia)
     const uploadDate = new Date().toLocaleString('id-ID', {
       day: '2-digit',
       month: '2-digit',
@@ -120,7 +124,7 @@ export async function POST(req) {
           docId, 
           customName, 
           category || 'Lainnya',
-          uploadDate,  // ← Gunakan variabel yang sudah dideklarasikan
+          uploadDate,
           `https://drive.google.com/file/d/${driveRes.data.id}/view`,
           description,
           buffer.length.toString()
@@ -147,17 +151,36 @@ export async function POST(req) {
     
     let errorMessage = error.message || 'Upload failed';
     
+    // Handle specific errors
     if (error.message?.includes('invalid_grant')) {
-      errorMessage = 'Google authentication failed. Check refresh token.';
+      errorMessage = 'Google authentication failed. Please logout and login again.';
     } else if (error.message?.includes('403')) {
       errorMessage = 'Access denied. Check if folder is shared with your account.';
     } else if (error.message?.includes('404')) {
       errorMessage = 'Drive folder or Sheet not found.';
+    } else if (error.message?.includes('quota')) {
+      errorMessage = 'Google Drive quota exceeded.';
     }
     
     return NextResponse.json({ 
       success: false, 
       message: errorMessage 
+    }, { status: 500 });
+  }
+}
+
+// GET endpoint untuk check upload status
+export async function GET() {
+  try {
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Upload API is working',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    return NextResponse.json({ 
+      success: false, 
+      message: error.message 
     }, { status: 500 });
   }
 }

@@ -11,19 +11,32 @@ export default function Scanner({ onScanComplete, onNavigate }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState('environment');
+  const [isMobile, setIsMobile] = useState(false);
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const streamRef = useRef(null);
 
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: facingMode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: isMobile ? 720 : 1280 },
+          height: { ideal: isMobile ? 1280 : 720 },
+          aspectRatio: isMobile ? { ideal: 0.75 } : { ideal: 1.777 }
         }
       });
       
@@ -53,18 +66,27 @@ export default function Scanner({ onScanComplete, onNavigate }) {
       stopCamera();
     }
     return () => stopCamera();
-  }, [mode, facingMode]);
+  }, [mode, facingMode, isMobile]);
 
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current) return;
     
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    
+    // Set canvas size to match video
+    if (isMobile) {
+      // Portrait capture for mobile
+      canvas.width = 720;
+      canvas.height = 1280;
+    } else {
+      // Landscape for desktop
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+    }
     
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     
     const imageData = canvas.toDataURL('image/jpeg', 0.9);
     addImage(imageData);
@@ -277,7 +299,9 @@ export default function Scanner({ onScanComplete, onNavigate }) {
         </div>
 
         {mode === 'camera' && (
-          <div className="relative bg-black rounded-2xl overflow-hidden mb-4 aspect-video">
+          <div className={`relative bg-black rounded-2xl overflow-hidden mb-4 ${
+            isMobile ? 'aspect-[3/4] h-[60vh]' : 'aspect-video'
+          }`}>
             <video
               ref={videoRef}
               autoPlay
@@ -287,7 +311,7 @@ export default function Scanner({ onScanComplete, onNavigate }) {
             />
             <canvas ref={canvasRef} className="hidden" />
             
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3">
+            <div className={`absolute ${isMobile ? 'bottom-20' : 'bottom-4'} left-0 right-0 flex justify-center gap-3`}>
               <button
                 onClick={() => setFacingMode(facingMode === 'environment' ? 'user' : 'environment')}
                 className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30 transition"
@@ -380,7 +404,9 @@ export default function Scanner({ onScanComplete, onNavigate }) {
               </button>
             </div>
 
-            <div className="relative bg-gray-100 dark:bg-slate-800 rounded-xl overflow-hidden mb-3 aspect-[3/4]">
+            <div className={`relative bg-gray-100 dark:bg-slate-800 rounded-xl overflow-hidden mb-3 ${
+              isMobile ? 'aspect-[3/4] max-h-[50vh]' : 'aspect-[3/4]'
+            }`}>
               <img 
                 src={images[currentIndex]?.filtered} 
                 alt="Preview" 

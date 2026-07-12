@@ -1,26 +1,30 @@
+'use client';
 import { useState, useEffect } from 'react';
 
 export function useResponsive() {
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(true);
-  const [windowSize, setWindowSize] = useState({
-    width: typeof window !== 'undefined' ? window.innerWidth : 1024,
-    height: typeof window !== 'undefined' ? window.innerHeight : 768,
-  });
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     const handleResize = () => {
       const width = window.innerWidth;
-      setWindowSize({ width, height: window.innerHeight });
+      const height = window.innerHeight;
       
+      setWindowSize({ width, height });
       setIsMobile(width < 768);
       setIsTablet(width >= 768 && width < 1024);
       setIsDesktop(width >= 1024);
     };
 
+    // Initial check
     handleResize();
+
+    // Add event listener
     window.addEventListener('resize', handleResize);
+    
+    // Cleanup
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -28,6 +32,6 @@ export function useResponsive() {
     isMobile,
     isTablet,
     isDesktop,
-    windowSize,
+    windowSize
   };
 }

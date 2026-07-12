@@ -10,7 +10,9 @@ export default function Header({
   onLogout,
   searchQuery,
   setSearchQuery,
-  onUploadClick
+  onUploadClick,
+  isMobile,
+  setIsMobileMenuOpen
 }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef(null);
@@ -36,8 +38,19 @@ export default function Header({
     <header className="glass-strong sticky top-0 z-30 border-b border-gray-200 dark:border-slate-800 animate-slide-down">
       <div className="px-4 lg:px-8 py-4">
         <div className="flex items-center justify-between gap-4">
-          {/* Left Section - Page Title */}
+          {/* Left Section - Mobile Menu Button + Page Title */}
           <div className="flex items-center gap-4 flex-1">
+            {/* Hamburger Menu Button (Mobile Only) */}
+            {isMobile && (
+              <button 
+                onClick={() => setIsMobileMenuOpen && setIsMobileMenuOpen(true)}
+                className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition"
+                aria-label="Open menu"
+              >
+                <i className="fa-solid fa-bars text-xl"></i>
+              </button>
+            )}
+            
             <div>
               <h1 className="text-2xl font-bold capitalize text-gray-900 dark:text-white">
                 {activeSection}
