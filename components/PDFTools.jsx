@@ -2,39 +2,53 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 import { showToast } from '@/utils/helpers';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Konfigurasi Worker PDF.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
 
 export default function PDFTools({ onToolComplete, onNavigate }) {
-  // --- STATES UMUM ---
+  // States
   const [activeTool, setActiveTool] = useState('merge');
   const [files, setFiles] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [splitPages, setSplitPages] = useState('');
   const [compressionLevel, setCompressionLevel] = useState('medium');
 
-  // --- STATES UNTUK SMART EDIT ---
+  // Smart Edit States
   const [pdfDoc, setPdfDoc] = useState(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [canvasActions, setCanvasActions] = useState([]);
-  const [currentEditMode, setCurrentEditMode] = useState(null); // 'whiteout', 'highlight', 'draw', 'text'
+  const [currentEditMode, setCurrentEditMode] = useState(null);
   
-  // Tool Settings
+  // Tool settings
   const [textInput, setTextInput] = useState('');
   const [fontSize, setFontSize] = useState(16);
   const [textColor, setTextColor] = useState('#000000');
   const [drawColor, setDrawColor] = useState('#ff0000');
   const [highlightColor, setHighlightColor] = useState('#ffff00');
 
-  // Canvas Refs
+  // Canvas refs
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [currentPath, setCurrentPath] = useState([]);
+  const [pdfjsReady, setPdfjsReady] = useState(false);
+
+  // Load PDF.js dari window global
+  useEffect(() => {
+    const checkPdfjs = () => {
+      if (typeof window !== 'undefined' && window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        setPdfjsReady(true);
+        console.log('✅ PDF.js loaded from CDN');
+      }
+    };
+    
+    checkPdfjs();
+    // Retry setelah 500ms jika belum ready
+    const timer = setTimeout(checkPdfjs, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // ==================== HELPER FUNCTIONS ====================
   const hexToRgb = (hex) => {
@@ -170,6 +184,8 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
   // ==================== SMART EDIT FUNCTIONS ====================
   const loadPDF = async () => {
     if (files.length !== 1) return showToast('Pilih 1 PDF untuk diedit', 'error');
+    if (!pdfjsReady) return showToast('PDF.js belum siap. Refresh halaman.', 'error');
+    
     try {
       const arrayBuffer = await files[0].arrayBuffer();
       const pdf = await PDFDocument.load(arrayBuffer);
@@ -186,9 +202,23 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
 
   const renderPage = async (pdf, pageIndex) => {
     if (!canvasRef.current) return;
+    if (!pdfjsReady) {
+      console.warn('PDF.js not ready yet');
+      return;
+    }
+    
     try {
-      const page = await pdf.getPage(pageIndex + 1);
+      // Pastikan pageIndex valid (0-based, max totalPages-1)
+      const safePageIndex = Math.max(0, Math.min(pageIndex, totalPages - 1));
+      
+      const arrayBuffer = await files[0].arrayBuffer();
+      const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdfDocJs = await loadingTask.promise;
+      
+      // Gunakan safePageIndex + 1 karena PDF.js 1-based
+      const page = await pdfDocJs.getPage(safePageIndex + 1);
       const viewport = page.getViewport({ scale: 1.5 });
+      
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
       
@@ -196,14 +226,16 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
       canvas.width = viewport.width;
       
       await page.render({ canvasContext: context, viewport }).promise;
+      
+      // Redraw semua aksi
       redrawActions(context, canvas.width, canvas.height);
     } catch (error) {
-      console.error('Render error:', error);
+      console.error('❌ Render error:', error);
+      showToast('Gagal render PDF: ' + error.message, 'error');
     }
   };
 
   const redrawActions = (context, canvasWidth, canvasHeight) => {
-    // Render ulang semua aksi di atas canvas
     canvasActions.forEach(action => {
       if (action.page !== currentPage) return;
       
@@ -254,7 +286,6 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
         color: textColor
       };
       setCanvasActions([...canvasActions, newAction]);
-      // Redraw immediately
       const context = canvasRef.current.getContext('2d');
       context.fillStyle = textColor;
       context.font = `${fontSize}px Arial`;
@@ -303,7 +334,6 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
           color: highlightColor
         };
         setCanvasActions([...canvasActions, newAction]);
-        // Update preview
         const context = canvasRef.current.getContext('2d');
         if (currentEditMode === 'whiteout') {
           context.fillStyle = 'white';
@@ -535,11 +565,14 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
           </div>
         )}
 
-        {/* ==================== SMART EDIT INTERFACE ==================== */}
+        {/* Smart Edit Interface */}
         {activeTool === 'edit' && files.length === 1 && !pdfDoc && (
-          <button onClick={loadPDF} className="btn-primary w-full py-3.5 mb-6">
-            <i className="fa-solid fa-file-import mr-2"></i>
-            Load PDF untuk Smart Edit
+          <button onClick={loadPDF} disabled={!pdfjsReady} className="btn-primary w-full py-3.5 mb-6 disabled:opacity-50">
+            {!pdfjsReady ? (
+              <><i className="fa-solid fa-circle-notch fa-spin mr-2"></i> Loading PDF.js...</>
+            ) : (
+              <><i className="fa-solid fa-file-import mr-2"></i> Load PDF untuk Smart Edit</>
+            )}
           </button>
         )}
 
