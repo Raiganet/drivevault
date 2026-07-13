@@ -4,7 +4,7 @@ import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 import { showToast } from '@/utils/helpers';
 
 export default function PDFTools({ onToolComplete, onNavigate }) {
-  // States
+  // ==================== STATES ====================
   const [activeTool, setActiveTool] = useState('merge');
   const [files, setFiles] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -17,23 +17,23 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
   const [totalPages, setTotalPages] = useState(0);
   const [canvasActions, setCanvasActions] = useState([]);
   const [currentEditMode, setCurrentEditMode] = useState(null);
-  
-  // Tool settings
+  const [pdfjsReady, setPdfjsReady] = useState(false);
+
+  // Tool Settings
   const [textInput, setTextInput] = useState('');
   const [fontSize, setFontSize] = useState(16);
   const [textColor, setTextColor] = useState('#000000');
   const [drawColor, setDrawColor] = useState('#ff0000');
   const [highlightColor, setHighlightColor] = useState('#ffff00');
 
-  // Canvas refs
+  // Canvas Refs
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [currentPath, setCurrentPath] = useState([]);
-  const [pdfjsReady, setPdfjsReady] = useState(false);
 
-  // Load PDF.js dari window global
+  // ==================== PDF.JS LOADING ====================
   useEffect(() => {
     const checkPdfjs = () => {
       if (typeof window !== 'undefined' && window.pdfjsLib) {
@@ -45,7 +45,6 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
     };
     
     checkPdfjs();
-    // Retry setelah 500ms jika belum ready
     const timer = setTimeout(checkPdfjs, 500);
     return () => clearTimeout(timer);
   }, []);
@@ -202,22 +201,19 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
 
   const renderPage = async (pdf, pageIndex) => {
     if (!canvasRef.current) return;
-    if (!pdfjsReady) {
-      console.warn('PDF.js not ready yet');
-      return;
-    }
+    if (!pdfjsReady) return;
     
     try {
-      // Pastikan pageIndex valid (0-based, max totalPages-1)
       const safePageIndex = Math.max(0, Math.min(pageIndex, totalPages - 1));
       
       const arrayBuffer = await files[0].arrayBuffer();
       const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
       const pdfDocJs = await loadingTask.promise;
       
-      // Gunakan safePageIndex + 1 karena PDF.js 1-based
       const page = await pdfDocJs.getPage(safePageIndex + 1);
-      const viewport = page.getViewport({ scale: 1.5 });
+      
+      // Scale 2.0 untuk PDF yang lebih jelas
+      const viewport = page.getViewport({ scale: 2.0 });
       
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
@@ -226,8 +222,6 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
       canvas.width = viewport.width;
       
       await page.render({ canvasContext: context, viewport }).promise;
-      
-      // Redraw semua aksi
       redrawActions(context, canvas.width, canvas.height);
     } catch (error) {
       console.error('❌ Render error:', error);
@@ -263,12 +257,20 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
     });
   };
 
-  // Canvas Mouse Events
+  // ==================== CANVAS MOUSE EVENTS ====================
   const handleMouseDown = (e) => {
-    if (!currentEditMode) return;
+    if (!currentEditMode) {
+      console.log('⚠️ No edit mode active');
+      return;
+    }
+    
+    console.log('🖱️ Mouse down at:', e.clientX, e.clientY, 'Mode:', currentEditMode);
+    
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+    
+    console.log('📍 Canvas coordinates:', x, y);
     
     setIsDrawing(true);
     setStartPos({ x, y });
@@ -313,16 +315,25 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
   };
 
   const handleMouseUp = (e) => {
-    if (!isDrawing) return;
+    if (!isDrawing) {
+      console.log('⚠️ Not drawing');
+      return;
+    }
+    
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+    
+    console.log('️ Mouse up at:', x, y, 'Start:', startPos, 'Mode:', currentEditMode);
     
     setIsDrawing(false);
     
     if (currentEditMode === 'whiteout' || currentEditMode === 'highlight') {
       const w = x - startPos.x;
       const h = y - startPos.y;
+      
+      console.log('📏 Whiteout/Highlight size:', Math.abs(w), Math.abs(h));
+      
       if (Math.abs(w) > 5 && Math.abs(h) > 5) {
         const newAction = {
           type: currentEditMode,
@@ -333,6 +344,9 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
           h: Math.abs(h),
           color: highlightColor
         };
+        
+        console.log('✅ Adding action:', newAction);
+        
         setCanvasActions([...canvasActions, newAction]);
         const context = canvasRef.current.getContext('2d');
         if (currentEditMode === 'whiteout') {
@@ -342,6 +356,10 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
           context.fillStyle = highlightColor + '66';
           context.fillRect(Math.min(startPos.x, x), Math.min(startPos.y, y), Math.abs(w), Math.abs(h));
         }
+        
+        showToast(`${currentEditMode === 'whiteout' ? 'Whiteout' : 'Highlight'} ditambahkan!`, 'success');
+      } else {
+        console.log('️ Area too small:', Math.abs(w), Math.abs(h));
       }
     } else if (currentEditMode === 'draw' && currentPath.length > 1) {
       const newAction = {
@@ -352,6 +370,7 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
         size: 3
       };
       setCanvasActions([...canvasActions, newAction]);
+      showToast('Coretan ditambahkan!', 'success');
     }
     
     setCurrentPath([]);
@@ -618,8 +637,8 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
               </button>
             </div>
 
-            {/* Canvas Preview */}
-            <div className="mb-6 p-4 bg-white dark:bg-slate-900 rounded-lg border-2 border-gray-300 dark:border-slate-700 overflow-auto max-h-[600px] flex justify-center">
+            {/* Canvas Preview - PERBESAR */}
+            <div className="mb-6 p-4 bg-white dark:bg-slate-900 rounded-lg border-2 border-gray-300 dark:border-slate-700 overflow-auto max-h-[900px] flex justify-center">
               <canvas
                 ref={canvasRef}
                 className={`border border-gray-200 shadow-lg ${currentEditMode ? 'cursor-crosshair' : 'cursor-default'}`}
@@ -633,49 +652,64 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
             {/* Edit Tools Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               {/* Whiteout */}
-              <div className={`p-4 bg-white dark:bg-slate-900 rounded-lg border-2 transition ${currentEditMode === 'whiteout' ? 'border-primary' : 'border-gray-200 dark:border-slate-700'}`}>
+              <div className={`p-4 bg-white dark:bg-slate-900 rounded-lg border-2 transition ${currentEditMode === 'whiteout' ? 'border-primary ring-2 ring-primary' : 'border-gray-200 dark:border-slate-700'}`}>
                 <h4 className="font-semibold mb-2 flex items-center gap-2">
                   <i className="fa-solid fa-eraser text-warning"></i> Whiteout
                 </h4>
                 <p className="text-xs text-gray-500 mb-3">Tutup text lama dengan kotak putih</p>
                 <button
-                  onClick={() => setCurrentEditMode(currentEditMode === 'whiteout' ? null : 'whiteout')}
-                  className={`btn-warning w-full text-sm ${currentEditMode === 'whiteout' ? 'ring-2 ring-primary' : ''}`}
+                  onClick={() => {
+                    console.log('🔧 Toggle whiteout mode. Current:', currentEditMode);
+                    setCurrentEditMode(currentEditMode === 'whiteout' ? null : 'whiteout');
+                  }}
+                  className={`w-full py-2 rounded-lg font-medium transition ${
+                    currentEditMode === 'whiteout' 
+                      ? 'bg-warning text-white shadow-lg' 
+                      : 'bg-gray-100 dark:bg-slate-800 hover:bg-warning/20'
+                  }`}
                 >
-                  {currentEditMode === 'whiteout' ? '✓ Aktif' : 'Aktifkan'}
+                  {currentEditMode === 'whiteout' ? '✓ Aktif - Klik & Drag di PDF' : 'Aktifkan'}
                 </button>
               </div>
 
               {/* Highlight */}
-              <div className={`p-4 bg-white dark:bg-slate-900 rounded-lg border-2 transition ${currentEditMode === 'highlight' ? 'border-primary' : 'border-gray-200 dark:border-slate-700'}`}>
+              <div className={`p-4 bg-white dark:bg-slate-900 rounded-lg border-2 transition ${currentEditMode === 'highlight' ? 'border-primary ring-2 ring-primary' : 'border-gray-200 dark:border-slate-700'}`}>
                 <h4 className="font-semibold mb-2 flex items-center gap-2">
                   <i className="fa-solid fa-highlighter text-success"></i> Highlight
                 </h4>
                 <input type="color" value={highlightColor} onChange={(e) => setHighlightColor(e.target.value)} className="w-full h-8 mb-2 rounded" />
                 <button
                   onClick={() => setCurrentEditMode(currentEditMode === 'highlight' ? null : 'highlight')}
-                  className={`btn-success w-full text-sm ${currentEditMode === 'highlight' ? 'ring-2 ring-primary' : ''}`}
+                  className={`w-full py-2 rounded-lg font-medium transition ${
+                    currentEditMode === 'highlight' 
+                      ? 'bg-success text-white shadow-lg' 
+                      : 'bg-gray-100 dark:bg-slate-800 hover:bg-success/20'
+                  }`}
                 >
-                  {currentEditMode === 'highlight' ? '✓ Aktif' : 'Aktifkan'}
+                  {currentEditMode === 'highlight' ? '✓ Aktif - Klik & Drag di PDF' : 'Aktifkan'}
                 </button>
               </div>
 
               {/* Draw */}
-              <div className={`p-4 bg-white dark:bg-slate-900 rounded-lg border-2 transition ${currentEditMode === 'draw' ? 'border-primary' : 'border-gray-200 dark:border-slate-700'}`}>
+              <div className={`p-4 bg-white dark:bg-slate-900 rounded-lg border-2 transition ${currentEditMode === 'draw' ? 'border-primary ring-2 ring-primary' : 'border-gray-200 dark:border-slate-700'}`}>
                 <h4 className="font-semibold mb-2 flex items-center gap-2">
                   <i className="fa-solid fa-pen text-info"></i> Draw
                 </h4>
                 <input type="color" value={drawColor} onChange={(e) => setDrawColor(e.target.value)} className="w-full h-8 mb-2 rounded" />
                 <button
                   onClick={() => setCurrentEditMode(currentEditMode === 'draw' ? null : 'draw')}
-                  className={`btn-info w-full text-sm text-white ${currentEditMode === 'draw' ? 'ring-2 ring-primary' : ''}`}
+                  className={`w-full py-2 rounded-lg font-medium transition text-white ${
+                    currentEditMode === 'draw' 
+                      ? 'bg-info shadow-lg' 
+                      : 'bg-gray-100 dark:bg-slate-800 hover:bg-info/20'
+                  }`}
                 >
-                  {currentEditMode === 'draw' ? '✓ Aktif' : 'Aktifkan'}
+                  {currentEditMode === 'draw' ? '✓ Aktif - Gambar di PDF' : 'Aktifkan'}
                 </button>
               </div>
 
               {/* Add Text */}
-              <div className={`p-4 bg-white dark:bg-slate-900 rounded-lg border-2 transition ${currentEditMode === 'text' ? 'border-primary' : 'border-gray-200 dark:border-slate-700'}`}>
+              <div className={`p-4 bg-white dark:bg-slate-900 rounded-lg border-2 transition ${currentEditMode === 'text' ? 'border-primary ring-2 ring-primary' : 'border-gray-200 dark:border-slate-700'}`}>
                 <h4 className="font-semibold mb-2 flex items-center gap-2">
                   <i className="fa-solid fa-font text-primary"></i> Add Text
                 </h4>
@@ -686,9 +720,13 @@ export default function PDFTools({ onToolComplete, onNavigate }) {
                 </div>
                 <button
                   onClick={() => setCurrentEditMode(currentEditMode === 'text' ? null : 'text')}
-                  className={`btn-primary w-full text-sm ${currentEditMode === 'text' ? 'ring-2 ring-secondary' : ''}`}
+                  className={`w-full py-2 rounded-lg font-medium transition ${
+                    currentEditMode === 'text' 
+                      ? 'bg-primary text-white shadow-lg' 
+                      : 'bg-gray-100 dark:bg-slate-800 hover:bg-primary/20'
+                  }`}
                 >
-                  {currentEditMode === 'text' ? '✓ Klik di PDF' : 'Aktifkan'}
+                  {currentEditMode === 'text' ? '✓ Aktif - Klik di PDF' : 'Aktifkan'}
                 </button>
               </div>
             </div>
