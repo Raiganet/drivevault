@@ -9,22 +9,108 @@ export default function OCRScanner({ onOCRComplete, onNavigate }) {
   const [extractedText, setExtractedText] = useState('');
   const [progress, setProgress] = useState(0);
   const [confidence, setConfidence] = useState(0);
+  const [enhanceImage, setEnhanceImage] = useState(true);
   const fileInputRef = useRef(null);
+  const canvasRef = useRef(null);
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('Ukuran file maksimal 10MB', 'error');
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (event) => {
         setImage(event.target.result);
         setExtractedText('');
         setConfidence(0);
+        setProgress(0);
       };
       reader.readAsDataURL(file);
       showToast('Gambar berhasil diupload', 'success');
     } else {
       showToast('Pilih file gambar (JPG, PNG)', 'error');
     }
+  };
+
+  // Preprocess image untuk OCR yang lebih baik
+  const preprocessImage = (imageSrc) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = canvasRef.current || document.createElement('canvas');
+        canvasRef.current = canvas;
+        
+        // Scale up 2x untuk resolusi lebih tinggi
+        const scale = 2;
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        
+        const ctx = canvas.getContext('2d');
+        
+        // Draw image dengan scaling
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        if (enhanceImage) {
+          // Get image data untuk preprocessing
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
+          
+          // Step 1: Convert to grayscale
+          for (let i = 0; i < data.length; i += 4) {
+            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            data[i] = avg;
+            data[i + 1] = avg;
+            data[i + 2] = avg;
+          }
+          
+          // Step 2: Enhance contrast (histogram stretching)
+          let min = 255, max = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            if (data[i] < min) min = data[i];
+            if (data[i] > max) max = data[i];
+          }
+          
+          const range = max - min;
+          if (range > 0) {
+            for (let i = 0; i < data.length; i += 4) {
+              data[i] = ((data[i] - min) / range) * 255;
+              data[i + 1] = data[i];
+              data[i + 2] = data[i];
+            }
+          }
+          
+          // Step 3: Sharpen (unsharp mask)
+          const sharpened = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const sharpenData = sharpened.data;
+          
+          for (let y = 1; y < canvas.height - 1; y++) {
+            for (let x = 1; x < canvas.width - 1; x++) {
+              const idx = (y * canvas.width + x) * 4;
+              
+              // Unsharp mask kernel
+              const center = sharpenData[idx] * 5;
+              const neighbors = 
+                sharpenData[((y-1) * canvas.width + x) * 4] +
+                sharpenData[((y+1) * canvas.width + x) * 4] +
+                sharpenData[(y * canvas.width + x - 1) * 4] +
+                sharpenData[(y * canvas.width + x + 1) * 4];
+              
+              const sharpened = center - neighbors;
+              data[idx] = Math.min(255, Math.max(0, sharpened));
+              data[idx + 1] = data[idx];
+              data[idx + 2] = data[idx];
+            }
+          }
+          
+          ctx.putImageData(imageData, 0, 0);
+        }
+        
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = imageSrc;
+    });
   };
 
   const extractText = async () => {
@@ -38,9 +124,17 @@ export default function OCRScanner({ onOCRComplete, onNavigate }) {
     showToast('Sedang mengekstrak text...', 'info');
 
     try {
+      // Preprocess image dulu
+      let processedImage = image;
+      if (enhanceImage) {
+        showToast('Meningkatkan kualitas gambar...', 'info');
+        processedImage = await preprocessImage(image);
+      }
+
+      // OCR dengan konfigurasi optimal
       const result = await Tesseract.recognize(
-        image,
-        'ind+eng', // Indonesian + English
+        processedImage,
+        'ind+eng',
         {
           logger: (m) => {
             if (m.status === 'recognizing text') {
@@ -53,12 +147,29 @@ export default function OCRScanner({ onOCRComplete, onNavigate }) {
         }
       );
 
-      setExtractedText(result.data.text);
+      // Clean up hasil text
+      let cleanedText = result.data.text;
+      
+      // Hapus karakter aneh dan normalize whitespace
+      cleanedText = cleanedText
+        .replace(/[^\w\s.,;:!?()-]/g, '') // Hapus karakter aneh
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .replace(/\n\s*\n/g, '\n') // Hapus empty lines
+        .trim();
+
+      setExtractedText(cleanedText);
       setConfidence(result.data.confidence);
-      showToast('Text berhasil diekstrak!', 'success');
+      
+      if (result.data.confidence > 80) {
+        showToast('Text berhasil diekstrak dengan akurat!', 'success');
+      } else if (result.data.confidence > 60) {
+        showToast('Text diekstrak, tapi mungkin perlu editing manual', 'warning');
+      } else {
+        showToast('Confidence rendah, coba gambar dengan kualitas lebih baik', 'warning');
+      }
       
       if (onOCRComplete) {
-        onOCRComplete(result.data.text);
+        onOCRComplete(cleanedText);
       }
     } catch (error) {
       console.error('OCR Error:', error);
@@ -73,9 +184,8 @@ export default function OCRScanner({ onOCRComplete, onNavigate }) {
 
     try {
       await navigator.clipboard.writeText(extractedText);
-      showToast('Text berhasil dicopy!', 'success');
+      showToast('Text berhasil dicopy ke clipboard!', 'success');
     } catch (error) {
-      // Fallback untuk browser lama
       const textArea = document.createElement('textarea');
       textArea.value = extractedText;
       document.body.appendChild(textArea);
@@ -132,7 +242,7 @@ export default function OCRScanner({ onOCRComplete, onNavigate }) {
         {/* Upload Section */}
         <div className="mb-6">
           <div 
-            className="upload-zone"
+            className="upload-zone cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
           >
             <div className="flex flex-col items-center">
@@ -180,6 +290,26 @@ export default function OCRScanner({ onOCRComplete, onNavigate }) {
                 className="w-full max-h-96 object-contain bg-gray-50 dark:bg-slate-900"
               />
             </div>
+          </div>
+        )}
+
+        {/* Options */}
+        {image && (
+          <div className="mb-4 p-4 bg-gray-50 dark:bg-slate-800 rounded-lg">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={enhanceImage}
+                onChange={(e) => setEnhanceImage(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <div>
+                <p className="font-medium text-sm">Enhance Image Quality</p>
+                <p className="text-xs text-gray-500">
+                  Grayscale + Contrast + Sharpen untuk hasil OCR lebih baik
+                </p>
+              </div>
+            </label>
           </div>
         )}
 
@@ -232,6 +362,9 @@ export default function OCRScanner({ onOCRComplete, onNavigate }) {
                 {confidence > 0 && (
                   <p className="text-xs text-gray-500 mt-1">
                     Confidence: {confidence.toFixed(1)}%
+                    {confidence < 60 && ' ️ (Rendah - perlu editing)'}
+                    {confidence >= 60 && confidence < 80 && ' ✓ (Cukup baik)'}
+                    {confidence >= 80 && ' ✓✓ (Sangat baik)'}
                   </p>
                 )}
               </div>
@@ -274,8 +407,12 @@ export default function OCRScanner({ onOCRComplete, onNavigate }) {
           <p className="text-sm text-blue-700 dark:text-blue-300 flex items-start gap-2">
             <i className="fa-solid fa-lightbulb mt-0.5"></i>
             <span>
-              <strong>Tips:</strong> Untuk hasil terbaik, gunakan gambar dengan text yang jelas, 
-              pencahayaan baik, dan resolusi tinggi. Mendukung Bahasa Indonesia dan Inggris.
+              <strong>Tips untuk hasil terbaik:</strong><br/>
+              • Gunakan gambar dengan resolusi tinggi (min 300 DPI)<br/>
+              • Pastikan text jelas dan tidak blur<br/>
+              • Pencahayaan merata, hindari bayangan<br/>
+              • Crop gambar ke area text saja jika memungkinkan<br/>
+              • Aktifkan "Enhance Image Quality" untuk gambar berkualitas rendah
             </span>
           </p>
         </div>

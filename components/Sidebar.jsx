@@ -35,25 +35,25 @@ export default function Sidebar({
         ></div>
       )}
 
-      {/* Sidebar - Purple Tinted Background */}
+      {/* Sidebar */}
       <aside 
         className={`
           fixed lg:sticky top-0 left-0 z-50 h-screen
           w-64
           transform transition-transform duration-300 ease-in-out
           ${isMobile ? (isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full') : 'translate-x-0'}
-          bg-gradient-to-b from-violet-50 via-purple-50 to-fuchsia-50 dark:from-slate-900 dark:via-purple-950/30 dark:to-slate-900 backdrop-blur-xl
-          border-r border-violet-200/50 dark:border-violet-800/30
+          bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl
+          border-r border-gray-200 dark:border-slate-800
           shadow-xl lg:shadow-none
           flex flex-col
         `}
         aria-label="Main navigation"
       >
         {/* Logo Section */}
-        <div className={`p-6 border-b border-violet-200/50 dark:border-violet-800/30 ${isCollapsed ? 'px-4' : ''}`}>
+        <div className={`p-6 border-b border-gray-200 dark:border-slate-800 ${isCollapsed ? 'px-4' : ''}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 flex items-center justify-center shadow-lg overflow-hidden">
+              <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg overflow-hidden">
                 <img 
                   src="/logo.png" 
                   alt="DriveVault Logo" 
@@ -71,27 +71,27 @@ export default function Sidebar({
               </div>
               {!isCollapsed && (
                 <div>
-                  <h1 className="font-bold text-lg bg-gradient-to-r from-violet-700 to-fuchsia-600 bg-clip-text text-transparent">{APP_NAME}</h1>
-                  <p className="text-xs text-violet-600/70 dark:text-violet-400/70">Enterprise</p>
+                  <h1 className="font-bold text-lg text-gradient">{APP_NAME}</h1>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Enterprise</p>
                 </div>
               )}
             </div>
             {!isMobile && (
               <button 
                 onClick={() => setIsCollapsed && setIsCollapsed(!isCollapsed)}
-                className="p-2 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-900/30 transition hidden lg:block"
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition hidden lg:block"
                 aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               >
-                <i className={`fa-solid ${isCollapsed ? 'fa-angles-right' : 'fa-angles-left'} text-violet-600 dark:text-violet-400`}></i>
+                <i className={`fa-solid ${isCollapsed ? 'fa-angles-right' : 'fa-angles-left'} text-gray-500`}></i>
               </button>
             )}
             {isMobile && (
               <button 
                 onClick={() => setIsMobileMenuOpen && setIsMobileMenuOpen(false)}
-                className="p-2 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-900/30 transition"
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition"
                 aria-label="Close menu"
               >
-                <i className="fa-solid fa-xmark text-violet-600 dark:text-violet-400"></i>
+                <i className="fa-solid fa-xmark text-gray-500"></i>
               </button>
             )}
           </div>
@@ -119,7 +119,7 @@ export default function Sidebar({
                 ${
                   activeSection === item.id
                     ? 'bg-gradient-to-r from-violet-600 via-fuchsia-500 to-blue-500 text-white shadow-[0_15px_40px_rgba(124,58,237,.35)]'
-                    : 'text-violet-700 dark:text-violet-300 hover:bg-violet-100/70 dark:hover:bg-violet-900/30 hover:translate-x-1'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-violet-50 dark:hover:bg-slate-800 hover:translate-x-1'
                 }
               `}
               aria-current={activeSection === item.id ? 'page' : undefined}
@@ -138,11 +138,11 @@ export default function Sidebar({
                   ${
                     activeSection === item.id
                       ? 'bg-white/20'
-                      : 'bg-violet-100/70 dark:bg-violet-900/40 group-hover:bg-violet-200/70 dark:group-hover:bg-violet-800/50'
+                      : 'bg-gray-100 dark:bg-slate-800 group-hover:bg-violet-100'
                   }
                 `}
               >
-                <i className={`fa-solid ${item.icon} text-violet-600 dark:text-violet-400 group-hover:text-violet-700 dark:group-hover:text-violet-300`}></i>
+                <i className={`fa-solid ${item.icon}`}></i>
               </div>
 
               {/* Label */}
@@ -160,9 +160,9 @@ export default function Sidebar({
           ))}
         </nav>
 
-        {/* Storage Widget - Premium Gradient */}
+        {/* Storage Widget */}
         {!isCollapsed && (
-          <div className="mt-auto p-4">
+          <div className="p-4 border-t border-gray-200 dark:border-slate-800">
             <div className="rounded-3xl bg-gradient-to-br from-violet-600 to-blue-600 text-white p-5 shadow-lg">
               <div className="flex justify-between mb-2">
                 <span className="font-medium">Storage</span>
@@ -181,31 +181,15 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* User Profile & Logout */}
-        <div className="p-4 border-t border-violet-200/50 dark:border-violet-800/30">
-          <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-500 flex items-center justify-center shadow-lg">
-              <i className="fa-solid fa-user text-white"></i>
-            </div>
-            {!isCollapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm truncate text-violet-900 dark:text-violet-100">{currentUser?.name || 'User'}</p>
-                <p className="text-xs text-violet-600/70 dark:text-violet-400/70 uppercase">
-                  {currentUser?.role || 'guest'}
-                </p>
-              </div>
-            )}
-          </div>
-          
-          {!isCollapsed && (
-            <button 
-              onClick={onLogout}
-              className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition font-medium text-sm"
-            >
-              <i className="fa-solid fa-right-from-bracket"></i>
-              Logout
-            </button>
-          )}
+        {/* Logout Button Only */}
+        <div className="p-4 border-t border-gray-200 dark:border-slate-800">
+          <button 
+            onClick={onLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition font-medium text-sm"
+          >
+            <i className="fa-solid fa-right-from-bracket"></i>
+            Logout
+          </button>
         </div>
       </aside>
     </>

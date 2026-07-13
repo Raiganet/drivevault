@@ -23,10 +23,12 @@
     "next": "16.2.10",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.0.379",
+    "qrcode": "^1.5.4",
     "react": "19.0.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "19.0.0",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

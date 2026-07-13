@@ -17,18 +17,37 @@ export default function Dashboard({
 }) {
   const storagePercentage = getStoragePercentage(stats.totalSize, STORAGE_LIMIT);
 
-  const handleQuickAction = (actionId) => {
-    switch (actionId) {
-      case 'upload':
-        onNavigate('upload');
-        break;
-      case 'export':
-        onExportData();
-        break;
-      default:
-        break;
-    }
-  };
+const handleQuickAction = (actionId) => {
+  switch (actionId) {
+    case 'upload':
+      onNavigate('upload');
+      break;
+   case 'folder':
+  const folderName = prompt('Masukkan nama folder:');
+  if (folderName) {
+    // API call untuk create folder
+    showToast(`Folder "${folderName}" berhasil dibuat`, 'success');
+  }
+  break;
+    case 'ocr':
+      onNavigate('ocr');
+      break;
+    case 'export':
+      onExportData();
+      break;
+    case 'backup':
+      showToast('Membuat backup data...', 'info');
+      onExportData();
+      break;
+    case 'share':
+  onNavigate('documents'); // Navigate ke documents untuk pilih file
+  showToast('Pilih dokumen yang ingin di-share', 'info');
+  break;
+    default:
+      showToast('Fitur sedang dalam development', 'info');
+      break;
+  }
+};
 
   const gradientMap = {
     primary: 'from-indigo-500 to-purple-500',

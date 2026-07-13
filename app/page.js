@@ -17,6 +17,7 @@ import Settings from '@/components/Settings';
 import PDFTools from '@/components/PDFTools';
 import Scanner from '@/components/Scanner';
 import OCRScanner from '@/components/OCRScanner';
+import QRGenerator from '@/components/QRGenerator';
 
 export default function Home() {
   // Hooks
@@ -274,6 +275,12 @@ export default function Home() {
 {activeSection === 'ocr' && (
   <OCRScanner
     onOCRComplete={handleUploadSuccess}
+    onNavigate={setActiveSection}
+  />
+)}
+{activeSection === 'qr-generator' && (
+  <QRGenerator
+    onGenerateComplete={handleUploadSuccess}
     onNavigate={setActiveSection}
   />
 )}
