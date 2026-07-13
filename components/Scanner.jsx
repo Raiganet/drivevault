@@ -13,6 +13,8 @@ export default function Scanner({ onScanComplete, onNavigate }) {
   const [facingMode, setFacingMode] = useState('environment');
   const [cameraError, setCameraError] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [flashOn, setFlashOn] = useState(false);
+  const [hasFlash, setHasFlash] = useState(false);
   
   // Smart Scanner States
   const [currentStep, setCurrentStep] = useState(0);
@@ -22,6 +24,7 @@ export default function Scanner({ onScanComplete, onNavigate }) {
   const [brightness, setBrightness] = useState(0);
   const [contrast, setContrast] = useState(0);
   const [sharpness, setSharpness] = useState(0);
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -37,13 +40,52 @@ export default function Scanner({ onScanComplete, onNavigate }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Camera functions - FIXED
+  // Check flash capability
+  const checkFlashCapability = async (stream) => {
+    try {
+      const track = stream.getVideoTracks()[0];
+      const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+      if (capabilities.torch) {
+        setHasFlash(true);
+        console.log('✅ Flash available');
+      } else {
+        setHasFlash(false);
+      }
+    } catch (error) {
+      console.log('Flash check error:', error);
+      setHasFlash(false);
+    }
+  };
+
+  // Toggle flash
+  const toggleFlash = async () => {
+    if (!streamRef.current) return;
+    
+    try {
+      const track = streamRef.current.getVideoTracks()[0];
+      const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+      
+      if (capabilities.torch) {
+        await track.applyConstraints({
+          advanced: [{ torch: !flashOn }]
+        });
+        setFlashOn(!flashOn);
+        showToast(flashOn ? 'Flash OFF' : 'Flash ON', 'info');
+      } else {
+        showToast('Flash tidak tersedia di perangkat ini', 'warning');
+      }
+    } catch (error) {
+      console.error('Flash error:', error);
+      showToast('Gagal mengontrol flash', 'error');
+    }
+  };
+
+  // Camera functions
   const startCamera = useCallback(async () => {
     try {
       setCameraError(null);
-      console.log('📷 Starting camera...');
+      console.log(' Starting camera...');
       
-      // Stop existing stream if any
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
@@ -64,12 +106,12 @@ export default function Scanner({ onScanComplete, onNavigate }) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
         
-        // Wait for video to be ready
         videoRef.current.onloadedmetadata = () => {
           console.log(' Video metadata loaded');
           videoRef.current.play().then(() => {
             console.log('▶️ Video playing');
             setIsCameraActive(true);
+            checkFlashCapability(stream);
           }).catch(err => {
             console.error('❌ Play error:', err);
             setCameraError('Gagal memutar video: ' + err.message);
@@ -110,17 +152,18 @@ export default function Scanner({ onScanComplete, onNavigate }) {
       videoRef.current.srcObject = null;
     }
     setIsCameraActive(false);
-    console.log('️ Camera stopped');
+    setFlashOn(false);
+    console.log(' Camera stopped');
   }, []);
 
   useEffect(() => {
-    if (mode === 'camera') {
+    if (mode === 'camera' && currentStep === 0) {
       startCamera();
     } else {
       stopCamera();
     }
     return () => stopCamera();
-  }, [mode, startCamera, stopCamera]);
+  }, [mode, startCamera, stopCamera, currentStep]);
 
   const capturePhoto = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !isCameraActive) {
@@ -148,17 +191,24 @@ export default function Scanner({ onScanComplete, onNavigate }) {
         reader.readAsDataURL(file);
       }
     });
-    showToast(`${files.length} gambar ditambahkan`, 'success');
+    if (files.length > 0) {
+      showToast(`${files.length} gambar ditambahkan`, 'success');
+    }
   };
 
   // Smart Scanner Core
   const startSmartScan = (imageData) => {
     setCurrentImage(imageData);
     setCurrentStep(1);
+    setFilter('original');
+    setBrightness(0);
+    setContrast(0);
+    setSharpness(0);
     
     const img = new Image();
     img.onload = () => {
-      const padding = 20;
+      setImageDimensions({ width: img.width, height: img.height });
+      const padding = Math.min(img.width, img.height) * 0.1;
       setCorners([
         { x: padding, y: padding },
         { x: img.width - padding, y: padding },
@@ -169,8 +219,61 @@ export default function Scanner({ onScanComplete, onNavigate }) {
     img.src = imageData;
   };
 
+  // Draw image on crop canvas
+  useEffect(() => {
+    if (currentStep === 1 && currentImage && cropCanvasRef.current && corners.length === 4) {
+      const canvas = cropCanvasRef.current;
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        // Set canvas size to match image
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Draw image
+        ctx.drawImage(img, 0, 0);
+        
+        // Draw polygon overlay
+        ctx.strokeStyle = '#7C3AED';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 5]);
+        ctx.fillStyle = 'rgba(124, 58, 237, 0.1)';
+        
+        ctx.beginPath();
+        ctx.moveTo(corners[0].x, corners[0].y);
+        for (let i = 1; i < corners.length; i++) {
+          ctx.lineTo(corners[i].x, corners[i].y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Draw corner handles
+        corners.forEach((corner, idx) => {
+          ctx.fillStyle = '#7C3AED';
+          ctx.strokeStyle = 'white';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(corner.x, corner.y, 15, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          
+          // Number
+          ctx.fillStyle = 'white';
+          ctx.font = 'bold 14px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(idx + 1, corner.x, corner.y);
+        });
+      };
+      img.src = currentImage;
+    }
+  }, [currentStep, currentImage, corners]);
+
   const applyPerspectiveCorrection = () => {
-    if (!currentImage || corners.length !== 4) return null;
+    if (!currentImage || corners.length !== 4) return Promise.resolve(currentImage);
     
     const img = new Image();
     const canvas = document.createElement('canvas');
@@ -292,6 +395,10 @@ export default function Scanner({ onScanComplete, onNavigate }) {
               data[i] = Math.min(255, Math.max(0, (r - 128) * 1.5 + 128 + 20));
               data[i + 1] = Math.min(255, Math.max(0, (g - 128) * 1.5 + 128 + 20));
               data[i + 2] = Math.min(255, Math.max(0, (b - 128) * 1.5 + 128 + 20));
+            } else if (filterType === 'sepia') {
+              data[i] = Math.min(255, r * 0.393 + g * 0.769 + b * 0.189);
+              data[i + 1] = Math.min(255, r * 0.349 + g * 0.686 + b * 0.168);
+              data[i + 2] = Math.min(255, r * 0.272 + g * 0.534 + b * 0.131);
             }
           }
           ctx.putImageData(imageData, 0, 0);
@@ -413,41 +520,67 @@ export default function Scanner({ onScanComplete, onNavigate }) {
     }
   };
 
-  const handleCropMouseDown = (e, cornerIndex) => {
+  // Corner drag handlers
+  const getCanvasCoordinates = (e) => {
+    const canvas = cropCanvasRef.current;
+    if (!canvas) return null;
+    
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
+    };
+  };
+
+  const handleCornerDown = (e, cornerIndex) => {
     e.preventDefault();
+    e.stopPropagation();
     setDraggingCorner(cornerIndex);
   };
 
-  const handleCropMouseMove = useCallback((e) => {
+  const handleMove = useCallback((e) => {
     if (draggingCorner === null || !cropCanvasRef.current) return;
+    e.preventDefault();
     
-    const rect = cropCanvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const coords = getCanvasCoordinates(e);
+    if (!coords) return;
     
     setCorners(prev => {
       const newCorners = [...prev];
       newCorners[draggingCorner] = { 
-        x: Math.max(0, Math.min(rect.width, x)),
-        y: Math.max(0, Math.min(rect.height, y))
+        x: Math.max(0, Math.min(imageDimensions.width, coords.x)),
+        y: Math.max(0, Math.min(imageDimensions.height, coords.y))
       };
       return newCorners;
     });
-  }, [draggingCorner]);
+  }, [draggingCorner, imageDimensions]);
 
-  const handleCropMouseUp = () => {
+  const handleUp = useCallback(() => {
     setDraggingCorner(null);
-  };
+  }, []);
 
   const filterOptions = [
-    { id: 'original', label: 'Original', icon: 'fa-image' },
-    { id: 'grayscale', label: 'Grayscale', icon: 'fa-circle-half-stroke' },
-    { id: 'bw', label: 'B&W', icon: 'fa-chess-board' },
-    { id: 'magic', label: 'Magic', icon: 'fa-wand-magic-sparkles' },
+    { id: 'original', label: 'Original', icon: 'fa-image', color: 'gray' },
+    { id: 'grayscale', label: 'Grayscale', icon: 'fa-circle-half-stroke', color: 'gray' },
+    { id: 'bw', label: 'B&W', icon: 'fa-chess-board', color: 'black' },
+    { id: 'magic', label: 'Magic', icon: 'fa-wand-magic-sparkles', color: 'purple' },
+    { id: 'sepia', label: 'Sepia', icon: 'fa-palette', color: 'amber' },
   ];
 
   const steps = [
-    { id: 1, label: 'Crop & Perspective', icon: 'fa-crop-simple' },
+    { id: 1, label: 'Crop', icon: 'fa-crop-simple' },
     { id: 2, label: 'Enhance', icon: 'fa-sliders' },
     { id: 3, label: 'Filter', icon: 'fa-palette' },
   ];
@@ -520,18 +653,20 @@ export default function Scanner({ onScanComplete, onNavigate }) {
             />
             <canvas ref={canvasRef} className="hidden" />
             
-            {!isCameraActive && !cameraError && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-                <button
-                  onClick={startCamera}
-                  className="btn-primary px-8 py-4 text-lg"
-                >
-                  <i className="fa-solid fa-video mr-2"></i>
-                  Start Camera
-                </button>
-              </div>
+            {/* Flash Button */}
+            {isCameraActive && hasFlash && (
+              <button
+                onClick={toggleFlash}
+                className={`absolute top-4 right-4 w-12 h-12 rounded-full backdrop-blur-md transition ${
+                  flashOn ? 'bg-yellow-400 text-black' : 'bg-white/20 text-white'
+                }`}
+                title={flashOn ? 'Flash ON' : 'Flash OFF'}
+              >
+                <i className={`fa-solid ${flashOn ? 'fa-bolt' : 'fa-bolt-slash'}`}></i>
+              </button>
             )}
             
+            {/* Camera Controls */}
             {isCameraActive && (
               <div className={`absolute ${isMobile ? 'bottom-20' : 'bottom-4'} left-0 right-0 flex justify-center gap-3`}>
                 <button
@@ -574,87 +709,310 @@ export default function Scanner({ onScanComplete, onNavigate }) {
           </div>
         )}
 
-        {/* Smart Scanner Steps */}
+        {/* STEP 1: CROP & PERSPECTIVE */}
         {currentStep === 1 && currentImage && (
           <div className="mb-6">
-            <h3 className="font-bold text-lg mb-4">Step 1: Crop & Perspective</h3>
-            <div className="relative bg-gray-100 rounded-xl overflow-hidden mb-4">
-              <canvas ref={cropCanvasRef} className="w-full block" onMouseMove={handleCropMouseMove} onMouseUp={handleCropMouseUp} onMouseLeave={handleCropMouseUp} />
-              {corners.length === 4 && corners.map((corner, idx) => (
-                <div key={idx} className="absolute w-6 h-6 rounded-full bg-primary border-4 border-white shadow-lg cursor-move" style={{ left: `${corner.x - 12}px`, top: `${corner.y - 12}px` }} onMouseDown={(e) => handleCropMouseDown(e, idx)} />
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <i className="fa-solid fa-crop-simple text-primary"></i>
+                Step 1: Crop & Perspective
+              </h3>
+              <button onClick={() => { setCurrentStep(0); setCurrentImage(null); }} className="text-sm text-danger hover:underline">
+                <i className="fa-solid fa-xmark mr-1"></i> Cancel
+              </button>
+            </div>
+
+            {/* Step indicator */}
+            <div className="flex gap-2 mb-4">
+              {steps.map((step) => (
+                <div key={step.id} className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium text-center transition ${
+                  currentStep === step.id ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500'
+                }`}>
+                  <i className={`fa-solid ${step.icon} mr-1`}></i>
+                  {step.label}
+                </div>
               ))}
             </div>
-            <button onClick={() => setCurrentStep(2)} className="btn-primary w-full">Next: Enhance</button>
-          </div>
-        )}
 
-        {currentStep === 2 && (
-          <div className="mb-6">
-            <h3 className="font-bold text-lg mb-4">Step 2: Enhancement</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Brightness: {brightness}</label>
-                <input type="range" min="-100" max="100" value={brightness} onChange={(e) => setBrightness(Number(e.target.value))} className="w-full" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Contrast: {contrast}</label>
-                <input type="range" min="-100" max="100" value={contrast} onChange={(e) => setContrast(Number(e.target.value))} className="w-full" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Sharpness: {sharpness}</label>
-                <input type="range" min="0" max="100" value={sharpness} onChange={(e) => setSharpness(Number(e.target.value))} className="w-full" />
-              </div>
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
+              <p className="text-sm text-blue-700 dark:text-blue-300 flex items-start gap-2">
+                <i className="fa-solid fa-lightbulb mt-0.5"></i>
+                <span>
+                  <strong>Drag 4 corner points</strong> untuk menyesuaikan area dokumen. 
+                  Perspective akan diluruskan otomatis saat diproses.
+                </span>
+              </p>
             </div>
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setCurrentStep(1)} className="btn-secondary flex-1">Back</button>
-              <button onClick={() => setCurrentStep(3)} className="btn-primary flex-1">Next: Filter</button>
-            </div>
-          </div>
-        )}
 
-        {currentStep === 3 && (
-          <div className="mb-6">
-            <h3 className="font-bold text-lg mb-4">Step 3: Filter</h3>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              {filterOptions.map(opt => (
-                <button key={opt.id} onClick={() => setFilter(opt.id)} className={`p-4 rounded-xl border-2 ${filter === opt.id ? 'border-primary bg-primary/10' : 'border-gray-200'}`}>
-                  <i className={`fa-solid ${opt.icon} text-2xl mb-2`}></i>
-                  <p className="text-sm">{opt.label}</p>
-                </button>
-              ))}
+            {/* Crop Canvas with draggable corners */}
+            <div className="relative bg-gray-100 dark:bg-slate-900 rounded-xl overflow-hidden mb-4 border-2 border-primary/30">
+              <canvas
+                ref={cropCanvasRef}
+                className="w-full block cursor-crosshair"
+                style={{ maxHeight: '60vh', objectFit: 'contain' }}
+                onMouseMove={handleMove}
+                onMouseUp={handleUp}
+                onMouseLeave={handleUp}
+                onTouchMove={handleMove}
+                onTouchEnd={handleUp}
+              />
+              
+              {/* Draggable corner handles (HTML overlay) */}
+              {corners.length === 4 && cropCanvasRef.current && (
+                <>
+                  {corners.map((corner, idx) => {
+                    const canvas = cropCanvasRef.current;
+                    const scaleX = canvas.offsetWidth / canvas.width;
+                    const scaleY = canvas.offsetHeight / canvas.height;
+                    
+                    return (
+                      <div
+                        key={idx}
+                        className="absolute w-8 h-8 rounded-full bg-primary border-4 border-white shadow-lg cursor-move hover:scale-125 transition-transform flex items-center justify-center text-white font-bold text-sm"
+                        style={{
+                          left: `${corner.x * scaleX - 16}px`,
+                          top: `${corner.y * scaleY - 16}px`,
+                          zIndex: 20,
+                          touchAction: 'none'
+                        }}
+                        onMouseDown={(e) => handleCornerDown(e, idx)}
+                        onTouchStart={(e) => handleCornerDown(e, idx)}
+                      >
+                        {idx + 1}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
+
             <div className="flex gap-2">
-              <button onClick={() => setCurrentStep(2)} className="btn-secondary flex-1">Back</button>
-              <button onClick={processCurrentImage} disabled={isProcessing} className="btn-primary flex-1 disabled:opacity-50">
-                {isProcessing ? 'Processing...' : 'Add to Document'}
+              <button onClick={() => setCurrentStep(2)} className="btn-primary flex-1">
+                Next: Enhance <i className="fa-solid fa-arrow-right ml-2"></i>
               </button>
             </div>
           </div>
         )}
 
-        {/* Images List */}
+        {/* STEP 2: ENHANCE */}
+        {currentStep === 2 && currentImage && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <i className="fa-solid fa-sliders text-primary"></i>
+                Step 2: Enhancement
+              </h3>
+              <button onClick={() => setCurrentStep(1)} className="text-sm text-primary hover:underline">
+                <i className="fa-solid fa-arrow-left mr-1"></i> Back
+              </button>
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              {steps.map((step) => (
+                <div key={step.id} className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium text-center transition ${
+                  currentStep === step.id ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500'
+                }`}>
+                  <i className={`fa-solid ${step.icon} mr-1`}></i>
+                  {step.label}
+                </div>
+              ))}
+            </div>
+
+            <div className="relative bg-gray-100 dark:bg-slate-900 rounded-xl overflow-hidden mb-4 border-2 border-primary/30">
+              <img src={currentImage} alt="Preview" className="w-full" />
+            </div>
+
+            <div className="space-y-4 p-4 bg-white dark:bg-slate-800 rounded-xl">
+              <div>
+                <div className="flex justify-between mb-2">
+                  <label className="font-medium text-sm flex items-center gap-2">
+                    <i className="fa-solid fa-sun text-warning"></i> Brightness
+                  </label>
+                  <span className="text-sm font-semibold text-primary">{brightness > 0 ? '+' : ''}{brightness}</span>
+                </div>
+                <input type="range" min="-100" max="100" value={brightness} onChange={(e) => setBrightness(Number(e.target.value))} className="w-full" />
+              </div>
+
+              <div>
+                <div className="flex justify-between mb-2">
+                  <label className="font-medium text-sm flex items-center gap-2">
+                    <i className="fa-solid fa-circle-half-stroke text-info"></i> Contrast
+                  </label>
+                  <span className="text-sm font-semibold text-primary">{contrast > 0 ? '+' : ''}{contrast}</span>
+                </div>
+                <input type="range" min="-100" max="100" value={contrast} onChange={(e) => setContrast(Number(e.target.value))} className="w-full" />
+              </div>
+
+              <div>
+                <div className="flex justify-between mb-2">
+                  <label className="font-medium text-sm flex items-center gap-2">
+                    <i className="fa-solid fa-bullseye text-danger"></i> Sharpness
+                  </label>
+                  <span className="text-sm font-semibold text-primary">{sharpness}</span>
+                </div>
+                <input type="range" min="0" max="100" value={sharpness} onChange={(e) => setSharpness(Number(e.target.value))} className="w-full" />
+              </div>
+
+              <button onClick={() => { setBrightness(0); setContrast(0); setSharpness(0); }} className="btn-secondary w-full text-sm">
+                <i className="fa-solid fa-rotate-left mr-2"></i> Reset Enhancements
+              </button>
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setCurrentStep(1)} className="btn-secondary flex-1">
+                <i className="fa-solid fa-arrow-left mr-2"></i> Back
+              </button>
+              <button onClick={() => setCurrentStep(3)} className="btn-primary flex-1">
+                Next: Filter <i className="fa-solid fa-arrow-right ml-2"></i>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: FILTER */}
+        {currentStep === 3 && currentImage && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <i className="fa-solid fa-palette text-primary"></i>
+                Step 3: Filter
+              </h3>
+              <button onClick={() => setCurrentStep(2)} className="text-sm text-primary hover:underline">
+                <i className="fa-solid fa-arrow-left mr-1"></i> Back
+              </button>
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              {steps.map((step) => (
+                <div key={step.id} className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium text-center transition ${
+                  currentStep === step.id ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500'
+                }`}>
+                  <i className={`fa-solid ${step.icon} mr-1`}></i>
+                  {step.label}
+                </div>
+              ))}
+            </div>
+
+            {/* Filter preview */}
+            <div className="relative bg-gray-100 dark:bg-slate-900 rounded-xl overflow-hidden mb-4 border-2 border-primary/30">
+              <img 
+                src={currentImage} 
+                alt="Preview" 
+                className="w-full"
+                style={{
+                  filter: filter === 'grayscale' ? 'grayscale(100%)' :
+                          filter === 'bw' ? 'grayscale(100%) contrast(200%)' :
+                          filter === 'sepia' ? 'sepia(100%)' :
+                          filter === 'magic' ? 'contrast(1.3) brightness(1.1) saturate(1.2)' :
+                          'none'
+                }}
+              />
+              <div className="absolute top-2 right-2 bg-primary text-white px-3 py-1 rounded-full text-xs font-semibold">
+                {filterOptions.find(f => f.id === filter)?.label}
+              </div>
+            </div>
+
+            {/* Filter options with active state */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+              {filterOptions.map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => setFilter(opt.id)}
+                  className={`p-4 rounded-xl border-2 transition-all ${
+                    filter === opt.id 
+                      ? 'border-primary bg-primary/10 shadow-lg scale-105' 
+                      : 'border-gray-200 dark:border-slate-700 hover:border-primary/50'
+                  }`}
+                >
+                  <i className={`fa-solid ${opt.icon} text-2xl mb-2 ${
+                    filter === opt.id ? 'text-primary' : 'text-gray-400'
+                  }`}></i>
+                  <p className={`text-sm font-medium ${
+                    filter === opt.id ? 'text-primary font-bold' : 'text-gray-600 dark:text-gray-400'
+                  }`}>{opt.label}</p>
+                  {filter === opt.id && (
+                    <div className="mt-2 text-xs text-primary font-semibold">
+                      <i className="fa-solid fa-check-circle mr-1"></i>
+                      Active
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={() => setCurrentStep(2)} className="btn-secondary flex-1">
+                <i className="fa-solid fa-arrow-left mr-2"></i> Back
+              </button>
+              <button onClick={processCurrentImage} disabled={isProcessing} className="btn-primary flex-1 disabled:opacity-50">
+                {isProcessing ? (
+                  <><i className="fa-solid fa-circle-notch fa-spin mr-2"></i> Processing...</>
+                ) : (
+                  <><i className="fa-solid fa-check mr-2"></i> Add to Document</>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Images List & PDF Generation */}
         {images.length > 0 && currentStep === 0 && (
           <div className="mb-4">
-            <h3 className="font-semibold mb-3">Pages ({images.length})</h3>
-            <div className="flex gap-2 overflow-x-auto pb-2">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold flex items-center gap-2">
+                <i className="fa-solid fa-images text-primary"></i>
+                Pages ({images.length})
+              </h3>
+              <button onClick={() => setImages([])} className="text-xs text-danger hover:underline">Clear All</button>
+            </div>
+
+            <div className="relative bg-gray-100 dark:bg-slate-800 rounded-xl overflow-hidden mb-3 aspect-[3/4]">
+              <img src={images[currentIndex]?.filtered} alt="Preview" className="w-full h-full object-contain" />
+              <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                Page {currentIndex + 1} of {images.length}
+              </div>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
               {images.map((img, idx) => (
-                <div key={img.id} className="relative flex-shrink-0 w-20 h-24 rounded-lg overflow-hidden cursor-pointer border-2" onClick={() => setCurrentIndex(idx)}>
+                <div key={img.id} className={`relative flex-shrink-0 w-20 h-24 rounded-lg overflow-hidden cursor-pointer border-2 transition ${
+                  idx === currentIndex ? 'border-primary shadow-lg' : 'border-transparent'
+                }`} onClick={() => setCurrentIndex(idx)}>
                   <img src={img.filtered} alt={`Page ${idx + 1}`} className="w-full h-full object-cover" />
                   <button onClick={(e) => { e.stopPropagation(); removeImage(idx); }} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs">
                     <i className="fa-solid fa-xmark"></i>
                   </button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs text-center py-0.5">{idx + 1}</div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Generate PDF */}
+        {/* Generate PDF Button */}
         {images.length > 0 && currentStep === 0 && (
           <button onClick={generatePDF} disabled={isProcessing} className="btn-primary w-full py-3.5 disabled:opacity-50">
-            {isProcessing ? 'Processing...' : `Generate PDF & Upload (${images.length} pages)`}
+            {isProcessing ? (
+              <><i className="fa-solid fa-circle-notch fa-spin mr-2"></i> Processing...</>
+            ) : (
+              <><i className="fa-solid fa-file-pdf mr-2"></i> Generate PDF & Upload ({images.length} page{images.length !== 1 ? 's' : ''})</>
+            )}
           </button>
         )}
+
+        {/* Info */}
+        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <p className="text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
+            <i className="fa-solid fa-info-circle mt-0.5"></i>
+            <span>
+              <strong>Smart Scanner Features:</strong><br/>
+              📄 Drag 4 corner points untuk crop & perspective correction<br/>
+              💡 Brightness, contrast, dan sharpness enhancement<br/>
+              🔍 Filter: Original, Grayscale, B&W, Magic, Sepia<br/>
+              ⚡ Flash camera (jika didukung perangkat)
+            </span>
+          </p>
+        </div>
       </div>
     </div>
   );
