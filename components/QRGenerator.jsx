@@ -2,6 +2,8 @@
 import { useState, useRef } from 'react';
 import QRCode from 'qrcode';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import { showToast } from '@/utils/helpers';
 
 export default function QRGenerator({ onGenerateComplete, onNavigate }) {
@@ -67,7 +69,7 @@ export default function QRGenerator({ onGenerateComplete, onNavigate }) {
   const generateQRCode = async (text) => {
     try {
       return await QRCode.toDataURL(text, {
-        width: 200,
+        width: 300,
         margin: 2,
         color: {
           dark: '#000000',
@@ -121,77 +123,236 @@ export default function QRGenerator({ onGenerateComplete, onNavigate }) {
     }
   };
 
-  const downloadWithQR = async () => {
+  // Download HTML Report dengan QR Code images
+  const downloadHTMLReport = () => {
     if (Object.keys(qrCodes).length === 0) {
       showToast('Generate QR Code terlebih dahulu', 'error');
       return;
     }
 
     setIsConverting(true);
-    showToast('Membuat dokumen dengan QR Code...', 'info');
+    showToast('Membuat HTML Report...', 'info');
 
     try {
-      // Create new workbook
-      const wb = XLSX.utils.book_new();
-      
-      // Prepare data with QR code references
-      const dataWithQR = data.map((row, index) => {
-        const qrCode = qrCodes[index];
-        return {
-          ...row,
-          'QR Code': qrCode ? 'Generated ✓' : 'Not Generated'
-        };
-      });
+      // Build HTML content
+      let htmlContent = `
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Code Report - ${file.name}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      padding: 20px; 
+      background: #f5f5f5;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 10px;
+    }
+    .header h1 { font-size: 28px; margin-bottom: 10px; }
+    .header p { opacity: 0.9; }
+    .info {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .info p { margin: 5px 0; color: #555; }
+    .info strong { color: #333; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    thead {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    th, td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    th { font-weight: 600; font-size: 14px; }
+    td { font-size: 13px; color: #333; }
+    tbody tr:hover { background: #f8f9fa; }
+    .qr-cell { text-align: center; }
+    .qr-cell img {
+      width: 100px;
+      height: 100px;
+      display: block;
+      margin: 0 auto;
+    }
+    .no { text-align: center; font-weight: 600; color: #667eea; }
+    .footer {
+      text-align: center;
+      margin-top: 30px;
+      padding: 15px;
+      color: #888;
+      font-size: 12px;
+    }
+    @media print {
+      body { padding: 10px; background: white; }
+      .header { background: #667eea !important; -webkit-print-color-adjust: exact; }
+      thead { background: #667eea !important; -webkit-print-color-adjust: exact; }
+      .no-print { display: none; }
+    }
+    .btn-print {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 24px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      z-index: 1000;
+    }
+    .btn-print:hover { background: #5568d3; }
+  </style>
+</head>
+<body>
+  <button class="btn-print no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  
+  <div class="header">
+    <h1>QR Code Report</h1>
+    <p>Generated from: ${file.name}</p>
+  </div>
 
-      // Add headers
-      const headers = [...columns, 'QR Code'];
-      const wsData = [headers, ...dataWithQR.map(row => 
-        headers.map(header => row[header] || '')
-      )];
+  <div class="info">
+    <p><strong>Source File:</strong> ${file.name}</p>
+    <p><strong>Total Data:</strong> ${data.length} rows</p>
+    <p><strong>QR Column:</strong> ${selectedColumn}</p>
+    <p><strong>Generated:</strong> ${new Date().toLocaleString('id-ID')}</p>
+    <p><strong>QR Codes:</strong> ${Object.keys(qrCodes).length} generated</p>
+  </div>
 
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-      
-      // Set column widths
-      ws['!cols'] = columns.map(() => ({ wch: 20 }));
-      ws['!cols'].push({ wch: 25 }); // QR Code column
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 50px;">No</th>
+        ${columns.map(col => `<th>${col}</th>`).join('')}
+        <th style="width: 130px;">QR Code</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${data.map((row, index) => `
+        <tr>
+          <td class="no">${index + 1}</td>
+          ${columns.map(col => `<td>${row[col] || ''}</td>`).join('')}
+          <td class="qr-cell">
+            ${qrCodes[index] ? `<img src="${qrCodes[index]}" alt="QR ${row[selectedColumn] || index + 1}">` : '-'}
+          </td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
 
-      XLSX.utils.book_append_sheet(wb, ws, 'Data dengan QR');
+  <div class="footer">
+    <p>Generated by DriveVault Pro - QR Generator</p>
+    <p>Tip: Klik tombol Print untuk menyimpan sebagai PDF</p>
+  </div>
+</body>
+</html>
+      `;
 
-      // Generate Excel file
-      const fileName = `QR_${file.name.replace('.xlsx', '').replace('.xls', '')}_${Date.now()}.xlsx`;
-      XLSX.writeFile(wb, fileName);
+      // Create blob and download
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const fileName = `QR_Report_${file.name.replace('.xlsx', '').replace('.xls', '')}_${Date.now()}.html`;
+      saveAs(blob, fileName);
 
-      showToast('File berhasil didownload!', 'success');
+      showToast('HTML Report berhasil didownload! Buka di browser untuk print/save PDF', 'success');
     } catch (error) {
-      console.error('Download error:', error);
-      showToast('Gagal mendownload file', 'error');
+      console.error('HTML Report error:', error);
+      showToast('Gagal membuat report', 'error');
     } finally {
       setIsConverting(false);
     }
   };
 
-  const downloadQRImages = async () => {
+  // Download semua QR sebagai ZIP
+  const downloadQRZip = async () => {
     if (Object.keys(qrCodes).length === 0) {
       showToast('Generate QR Code terlebih dahulu', 'error');
       return;
     }
 
-    showToast('Mempersiapkan download QR Codes...', 'info');
+    setIsConverting(true);
+    showToast('Membuat file ZIP...', 'info');
 
-    // Download each QR code
-    Object.entries(qrCodes).forEach(([index, qrCode]) => {
-      const row = data[index];
-      const serialNumber = row[selectedColumn] || `Row_${index + 1}`;
+    try {
+      const zip = new JSZip();
+      const qrFolder = zip.folder('QR_Codes');
       
-      const link = document.createElement('a');
-      link.href = qrCode;
-      link.download = `QR_${serialNumber}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    });
+      // Tambahkan semua QR ke ZIP
+      const qrEntries = Object.entries(qrCodes);
+      
+      for (let i = 0; i < qrEntries.length; i++) {
+        const [index, qrCode] = qrEntries[i];
+        const row = data[index];
+        const serialNumber = row[selectedColumn] || `Row_${parseInt(index) + 1}`;
+        
+        // Convert base64 to binary
+        const base64Data = qrCode.split(',')[1];
+        const fileName = `QR_${serialNumber}.png`;
+        
+        qrFolder.file(fileName, base64Data, { base64: true });
+        
+        setProgress(Math.round(((i + 1) / qrEntries.length) * 100));
+      }
 
-    showToast(`${Object.keys(qrCodes).length} QR Code didownload!`, 'success');
+      // Generate manifest file
+      let manifest = `QR Code Manifest\n`;
+      manifest += `Generated: ${new Date().toLocaleString('id-ID')}\n`;
+      manifest += `Source File: ${file.name}\n`;
+      manifest += `Column: ${selectedColumn}\n`;
+      manifest += `Total QR Codes: ${qrEntries.length}\n`;
+      manifest += `========================================\n\n`;
+      manifest += `No | Serial Number | File Name\n`;
+      manifest += `----------------------------------------\n`;
+      
+      qrEntries.forEach(([index, qrCode], idx) => {
+        const row = data[index];
+        const serialNumber = row[selectedColumn] || `Row_${parseInt(index) + 1}`;
+        manifest += `${idx + 1} | ${serialNumber} | QR_${serialNumber}.png\n`;
+      });
+
+      zip.file('MANIFEST.txt', manifest);
+
+      // Generate ZIP file
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 9 }
+      });
+
+      const fileName = `QR_Codes_${file.name.replace('.xlsx', '').replace('.xls', '')}_${Date.now()}.zip`;
+      saveAs(zipBlob, fileName);
+
+      showToast(`${qrEntries.length} QR Code berhasil di-download dalam 1 file ZIP!`, 'success');
+    } catch (error) {
+      console.error('ZIP error:', error);
+      showToast('Gagal membuat file ZIP', 'error');
+    } finally {
+      setIsConverting(false);
+      setProgress(0);
+    }
   };
 
   const clearAll = () => {
@@ -343,29 +504,45 @@ export default function QRGenerator({ onGenerateComplete, onNavigate }) {
         {/* Preview Table */}
         {data.length > 0 && Object.keys(qrCodes).length > 0 && (
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h3 className="font-semibold flex items-center gap-2">
                 <i className="fa-solid fa-table text-primary"></i>
                 Preview Data dengan QR Code
               </h3>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button
-                  onClick={downloadWithQR}
+                  onClick={downloadHTMLReport}
                   disabled={isConverting}
                   className="btn-secondary text-sm"
                 >
-                  <i className="fa-solid fa-file-excel mr-2"></i>
-                  Download Excel
+                  <i className="fa-solid fa-file-html mr-2"></i>
+                  Download HTML Report
                 </button>
                 <button
-                  onClick={downloadQRImages}
+                  onClick={downloadQRZip}
+                  disabled={isConverting}
                   className="btn-secondary text-sm"
                 >
-                  <i className="fa-solid fa-images mr-2"></i>
-                  Download QR Images
+                  <i className="fa-solid fa-file-zipper mr-2"></i>
+                  Download QR ZIP
                 </button>
               </div>
             </div>
+
+            {isConverting && (
+              <div className="mb-4">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-600 dark:text-gray-400">Creating file...</span>
+                  <span className="font-semibold">{progress}%</span>
+                </div>
+                <div className="progress-bar">
+                  <div 
+                    className="progress-bar-fill"
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
 
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -418,7 +595,8 @@ export default function QRGenerator({ onGenerateComplete, onNavigate }) {
               1. Upload file Excel yang berisi data Serial Number<br/>
               2. Pilih kolom yang ingin di-generate menjadi QR Code<br/>
               3. Klik "Generate QR Codes"<br/>
-              4. Download hasil dalam format Excel atau download semua QR Code sebagai gambar PNG
+              4. <strong>Download HTML Report</strong> - File HTML dengan tabel + QR Code (bisa di-print/save PDF)<br/>
+              5. <strong>Download QR ZIP</strong> - Semua QR Code dalam 1 file ZIP (tidak perlu download satu-satu)
             </span>
           </p>
         </div>

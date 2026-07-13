@@ -17,9 +17,11 @@
   "author": "@Raiganet",
   "license": "MIT",
   "dependencies": {
+    "file-saver": "^2.0.5",
     "googleapis": "^144.0.0",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^2.5.2",
+    "jszip": "^3.10.1",
     "next": "16.2.10",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.0.379",
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@types/file-saver": "^2.0.7",
     "autoprefixer": "^10.4.17",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
