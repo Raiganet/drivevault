@@ -37,6 +37,10 @@ export default function RootLayout({ children }) {
           integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
           crossOrigin="anonymous"
         />
+            <Script 
+          src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+          strategy="beforeInteractive"
+        />
       </head>
       <body className="light antialiased">
         {children}
