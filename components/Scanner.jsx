@@ -15,6 +15,7 @@ export default function Scanner({ onScanComplete, onNavigate }) {
   const [isMobile, setIsMobile] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
   const [hasFlash, setHasFlash] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(true);
   
   // Smart Scanner States
   const [currentStep, setCurrentStep] = useState(0);
@@ -31,26 +32,63 @@ export default function Scanner({ onScanComplete, onNavigate }) {
   const cropCanvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const streamRef = useRef(null);
+  const trackRef = useRef(null);
 
-  // Detect mobile
+  // Detect mobile & orientation
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    const checkOrientation = () => {
+      const portrait = window.innerHeight > window.innerWidth;
+      setIsPortrait(portrait);
+    };
+    
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    checkOrientation();
+    window.addEventListener('resize', () => { checkMobile(); checkOrientation(); });
+    window.addEventListener('orientationchange', checkOrientation);
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('orientationchange', checkOrientation);
+    };
   }, []);
 
   // Check flash capability
-  const checkFlashCapability = async (stream) => {
+  const checkFlashCapability = (stream) => {
     try {
       const track = stream.getVideoTracks()[0];
-      const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-      if (capabilities.torch) {
-        setHasFlash(true);
-        console.log('✅ Flash available');
-      } else {
-        setHasFlash(false);
+      trackRef.current = track;
+      
+      // Method 1: getCapabilities
+      if (track.getCapabilities) {
+        const capabilities = track.getCapabilities();
+        if (capabilities.torch) {
+          setHasFlash(true);
+          console.log('✅ Flash available (capabilities)');
+          return;
+        }
       }
+      
+      // Method 2: getSettings + applyConstraints test
+      if (track.getSettings) {
+        const settings = track.getSettings();
+        if (settings.torch !== undefined) {
+          setHasFlash(true);
+          console.log('✅ Flash available (settings)');
+          return;
+        }
+      }
+      
+      // Method 3: Try applyConstraints directly
+      track.applyConstraints({ advanced: [{ torch: true }] })
+        .then(() => {
+          setHasFlash(true);
+          console.log('✅ Flash available (constraint test)');
+          track.applyConstraints({ advanced: [{ torch: false }] });
+        })
+        .catch(() => {
+          setHasFlash(false);
+          console.log('❌ Flash not available');
+        });
     } catch (error) {
       console.log('Flash check error:', error);
       setHasFlash(false);
@@ -59,24 +97,20 @@ export default function Scanner({ onScanComplete, onNavigate }) {
 
   // Toggle flash
   const toggleFlash = async () => {
-    if (!streamRef.current) return;
+    if (!trackRef.current) {
+      showToast('Kamera belum aktif', 'error');
+      return;
+    }
     
     try {
-      const track = streamRef.current.getVideoTracks()[0];
-      const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-      
-      if (capabilities.torch) {
-        await track.applyConstraints({
-          advanced: [{ torch: !flashOn }]
-        });
-        setFlashOn(!flashOn);
-        showToast(flashOn ? 'Flash OFF' : 'Flash ON', 'info');
-      } else {
-        showToast('Flash tidak tersedia di perangkat ini', 'warning');
-      }
+      await trackRef.current.applyConstraints({
+        advanced: [{ torch: !flashOn }]
+      });
+      setFlashOn(!flashOn);
+      showToast(flashOn ? '🔦 Flash OFF' : '⚡ Flash ON', 'info');
     } catch (error) {
       console.error('Flash error:', error);
-      showToast('Gagal mengontrol flash', 'error');
+      showToast('Flash tidak didukung perangkat ini', 'warning');
     }
   };
 
@@ -84,7 +118,7 @@ export default function Scanner({ onScanComplete, onNavigate }) {
   const startCamera = useCallback(async () => {
     try {
       setCameraError(null);
-      console.log(' Starting camera...');
+      console.log('📷 Starting camera...');
       
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
@@ -94,8 +128,8 @@ export default function Scanner({ onScanComplete, onNavigate }) {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: facingMode,
-          width: { ideal: isMobile ? 720 : 1280 },
-          height: { ideal: isMobile ? 1280 : 720 }
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
         },
         audio: false
       });
@@ -107,7 +141,7 @@ export default function Scanner({ onScanComplete, onNavigate }) {
         streamRef.current = stream;
         
         videoRef.current.onloadedmetadata = () => {
-          console.log(' Video metadata loaded');
+          console.log('📹 Video metadata loaded:', videoRef.current.videoWidth, 'x', videoRef.current.videoHeight);
           videoRef.current.play().then(() => {
             console.log('▶️ Video playing');
             setIsCameraActive(true);
@@ -141,7 +175,7 @@ export default function Scanner({ onScanComplete, onNavigate }) {
       setIsCameraActive(false);
       showToast(errorMessage, 'error');
     }
-  }, [facingMode, isMobile]);
+  }, [facingMode]);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -151,9 +185,10 @@ export default function Scanner({ onScanComplete, onNavigate }) {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    trackRef.current = null;
     setIsCameraActive(false);
     setFlashOn(false);
-    console.log(' Camera stopped');
+    console.log('🛑 Camera stopped');
   }, []);
 
   useEffect(() => {
@@ -165,6 +200,7 @@ export default function Scanner({ onScanComplete, onNavigate }) {
     return () => stopCamera();
   }, [mode, startCamera, stopCamera, currentStep]);
 
+  // FIXED: Capture with rotation handling
   const capturePhoto = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !isCameraActive) {
       showToast('Kamera belum siap', 'error');
@@ -173,14 +209,36 @@ export default function Scanner({ onScanComplete, onNavigate }) {
     
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
+    
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
+    
+    console.log('📸 Capture:', videoWidth, 'x', videoHeight, 'Portrait:', isPortrait);
+    
+    // Handle rotation: if video is landscape but device is portrait, rotate
+    if (isPortrait && videoWidth > videoHeight) {
+      // Swap dimensions for portrait output
+      canvas.width = videoHeight;
+      canvas.height = videoWidth;
+      
+      // Rotate 90 degrees clockwise
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(90 * Math.PI / 180);
+      ctx.drawImage(video, -videoWidth / 2, -videoHeight / 2);
+      ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+      
+      console.log('🔄 Rotated to portrait:', canvas.width, 'x', canvas.height);
+    } else {
+      canvas.width = videoWidth;
+      canvas.height = videoHeight;
+      ctx.drawImage(video, 0, 0);
+    }
+    
     const imageData = canvas.toDataURL('image/jpeg', 0.9);
     startSmartScan(imageData);
     showToast('Foto berhasil diambil!', 'success');
-  }, [isCameraActive]);
+  }, [isCameraActive, isPortrait]);
 
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files);
@@ -208,7 +266,7 @@ export default function Scanner({ onScanComplete, onNavigate }) {
     const img = new Image();
     img.onload = () => {
       setImageDimensions({ width: img.width, height: img.height });
-      const padding = Math.min(img.width, img.height) * 0.1;
+      const padding = Math.min(img.width, img.height) * 0.05;
       setCorners([
         { x: padding, y: padding },
         { x: img.width - padding, y: padding },
@@ -236,9 +294,9 @@ export default function Scanner({ onScanComplete, onNavigate }) {
         
         // Draw polygon overlay
         ctx.strokeStyle = '#7C3AED';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([10, 5]);
-        ctx.fillStyle = 'rgba(124, 58, 237, 0.1)';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([15, 8]);
+        ctx.fillStyle = 'rgba(124, 58, 237, 0.15)';
         
         ctx.beginPath();
         ctx.moveTo(corners[0].x, corners[0].y);
@@ -252,17 +310,24 @@ export default function Scanner({ onScanComplete, onNavigate }) {
         
         // Draw corner handles
         corners.forEach((corner, idx) => {
-          ctx.fillStyle = '#7C3AED';
-          ctx.strokeStyle = 'white';
-          ctx.lineWidth = 3;
+          // Outer ring
+          ctx.fillStyle = 'white';
+          ctx.strokeStyle = '#7C3AED';
+          ctx.lineWidth = 4;
           ctx.beginPath();
-          ctx.arc(corner.x, corner.y, 15, 0, Math.PI * 2);
+          ctx.arc(corner.x, corner.y, 25, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           
+          // Inner dot
+          ctx.fillStyle = '#7C3AED';
+          ctx.beginPath();
+          ctx.arc(corner.x, corner.y, 12, 0, Math.PI * 2);
+          ctx.fill();
+          
           // Number
           ctx.fillStyle = 'white';
-          ctx.font = 'bold 14px Arial';
+          ctx.font = 'bold 16px Arial';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(idx + 1, corner.x, corner.y);
@@ -520,7 +585,7 @@ export default function Scanner({ onScanComplete, onNavigate }) {
     }
   };
 
-  // Corner drag handlers
+  // FIXED: Touch-friendly corner drag handlers
   const getCanvasCoordinates = (e) => {
     const canvas = cropCanvasRef.current;
     if (!canvas) return null;
@@ -533,6 +598,9 @@ export default function Scanner({ onScanComplete, onNavigate }) {
     if (e.touches && e.touches.length > 0) {
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
+    } else if (e.changedTouches && e.changedTouches.length > 0) {
+      clientX = e.changedTouches[0].clientX;
+      clientY = e.changedTouches[0].clientY;
     } else {
       clientX = e.clientX;
       clientY = e.clientY;
@@ -548,6 +616,7 @@ export default function Scanner({ onScanComplete, onNavigate }) {
     e.preventDefault();
     e.stopPropagation();
     setDraggingCorner(cornerIndex);
+    console.log('👆 Corner', cornerIndex, 'grabbed');
   };
 
   const handleMove = useCallback((e) => {
@@ -567,16 +636,19 @@ export default function Scanner({ onScanComplete, onNavigate }) {
     });
   }, [draggingCorner, imageDimensions]);
 
-  const handleUp = useCallback(() => {
+  const handleUp = useCallback((e) => {
+    if (draggingCorner !== null) {
+      console.log('✋ Corner', draggingCorner, 'released');
+    }
     setDraggingCorner(null);
-  }, []);
+  }, [draggingCorner]);
 
   const filterOptions = [
-    { id: 'original', label: 'Original', icon: 'fa-image', color: 'gray' },
-    { id: 'grayscale', label: 'Grayscale', icon: 'fa-circle-half-stroke', color: 'gray' },
-    { id: 'bw', label: 'B&W', icon: 'fa-chess-board', color: 'black' },
-    { id: 'magic', label: 'Magic', icon: 'fa-wand-magic-sparkles', color: 'purple' },
-    { id: 'sepia', label: 'Sepia', icon: 'fa-palette', color: 'amber' },
+    { id: 'original', label: 'Original', icon: 'fa-image' },
+    { id: 'grayscale', label: 'Grayscale', icon: 'fa-circle-half-stroke' },
+    { id: 'bw', label: 'B&W', icon: 'fa-chess-board' },
+    { id: 'magic', label: 'Magic', icon: 'fa-wand-magic-sparkles' },
+    { id: 'sepia', label: 'Sepia', icon: 'fa-palette' },
   ];
 
   const steps = [
@@ -649,20 +721,21 @@ export default function Scanner({ onScanComplete, onNavigate }) {
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover"
+              className={`w-full h-full object-cover ${isPortrait ? 'rotate-0' : ''}`}
+              style={{ transform: isPortrait ? 'rotate(0deg)' : 'rotate(0deg)' }}
             />
             <canvas ref={canvasRef} className="hidden" />
             
-            {/* Flash Button */}
-            {isCameraActive && hasFlash && (
+            {/* Flash Button - ALWAYS VISIBLE */}
+            {isCameraActive && (
               <button
                 onClick={toggleFlash}
-                className={`absolute top-4 right-4 w-12 h-12 rounded-full backdrop-blur-md transition ${
-                  flashOn ? 'bg-yellow-400 text-black' : 'bg-white/20 text-white'
+                className={`absolute top-4 right-4 w-12 h-12 rounded-full backdrop-blur-md transition shadow-lg ${
+                  flashOn ? 'bg-yellow-400 text-black' : 'bg-white/20 text-white hover:bg-white/30'
                 }`}
-                title={flashOn ? 'Flash ON' : 'Flash OFF'}
+                title={flashOn ? 'Flash ON - Klik untuk matikan' : 'Flash OFF - Klik untuk nyalakan'}
               >
-                <i className={`fa-solid ${flashOn ? 'fa-bolt' : 'fa-bolt-slash'}`}></i>
+                <i className={`fa-solid ${flashOn ? 'fa-bolt' : 'fa-bolt-slash'} text-lg`}></i>
               </button>
             )}
             
@@ -748,13 +821,18 @@ export default function Scanner({ onScanComplete, onNavigate }) {
             <div className="relative bg-gray-100 dark:bg-slate-900 rounded-xl overflow-hidden mb-4 border-2 border-primary/30">
               <canvas
                 ref={cropCanvasRef}
-                className="w-full block cursor-crosshair"
-                style={{ maxHeight: '60vh', objectFit: 'contain' }}
+                className="w-full block"
+                style={{ 
+                  maxHeight: '60vh', 
+                  touchAction: 'none',
+                  cursor: draggingCorner !== null ? 'grabbing' : 'crosshair'
+                }}
                 onMouseMove={handleMove}
                 onMouseUp={handleUp}
                 onMouseLeave={handleUp}
                 onTouchMove={handleMove}
                 onTouchEnd={handleUp}
+                onTouchCancel={handleUp}
               />
               
               {/* Draggable corner handles (HTML overlay) */}
@@ -768,11 +846,14 @@ export default function Scanner({ onScanComplete, onNavigate }) {
                     return (
                       <div
                         key={idx}
-                        className="absolute w-8 h-8 rounded-full bg-primary border-4 border-white shadow-lg cursor-move hover:scale-125 transition-transform flex items-center justify-center text-white font-bold text-sm"
+                        className={`absolute rounded-full border-4 border-white shadow-lg flex items-center justify-center text-white font-bold text-sm transition-transform ${
+                          draggingCorner === idx ? 'scale-125 bg-yellow-500 z-30' : 'bg-primary z-20'
+                        }`}
                         style={{
-                          left: `${corner.x * scaleX - 16}px`,
-                          top: `${corner.y * scaleY - 16}px`,
-                          zIndex: 20,
+                          width: '48px',
+                          height: '48px',
+                          left: `${corner.x * scaleX - 24}px`,
+                          top: `${corner.y * scaleY - 24}px`,
                           touchAction: 'none'
                         }}
                         onMouseDown={(e) => handleCornerDown(e, idx)}
@@ -1006,10 +1087,10 @@ export default function Scanner({ onScanComplete, onNavigate }) {
             <i className="fa-solid fa-info-circle mt-0.5"></i>
             <span>
               <strong>Smart Scanner Features:</strong><br/>
+               Flash camera (klik icon bolt di kamera)<br/>
               📄 Drag 4 corner points untuk crop & perspective correction<br/>
               💡 Brightness, contrast, dan sharpness enhancement<br/>
-              🔍 Filter: Original, Grayscale, B&W, Magic, Sepia<br/>
-              ⚡ Flash camera (jika didukung perangkat)
+              🔍 Filter: Original, Grayscale, B&W, Magic, Sepia
             </span>
           </p>
         </div>
